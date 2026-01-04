@@ -82,13 +82,13 @@ func (c *Client) Register(deviceType string) (string, error) {
 
 // Light represents a Hue light.
 type Light struct {
-	ID    string
-	Name  string
-	On    bool
-	Bri   int // 0-254
-	Hue   int // 0-65535
-	Sat   int // 0-254
-	Type  string
+	ID         string
+	Name       string
+	On         bool
+	Brightness int // 0-254
+	Hue        int // 0-65535
+	Saturation int // 0-254
+	Type       string
 }
 
 // lightResponse matches the JSON structure from the bridge for a single light.
@@ -96,10 +96,10 @@ type lightResponse struct {
 	Name  string `json:"name"`
 	Type  string `json:"type"`
 	State struct {
-		On  bool `json:"on"`
-		Bri int  `json:"bri"`
-		Hue int  `json:"hue"`
-		Sat int  `json:"sat"`
+		On         bool `json:"on"`
+		Brightness int  `json:"bri"`
+		Hue        int  `json:"hue"`
+		Saturation int  `json:"sat"`
 	} `json:"state"`
 }
 
@@ -131,13 +131,13 @@ func (c *Client) GetLights() ([]Light, error) {
 	lights := make([]Light, 0, len(lightsMap))
 	for id, lr := range lightsMap {
 		lights = append(lights, Light{
-			ID:   id,
-			Name: lr.Name,
-			On:   lr.State.On,
-			Bri:  lr.State.Bri,
-			Hue:  lr.State.Hue,
-			Sat:  lr.State.Sat,
-			Type: lr.Type,
+			ID:         id,
+			Name:       lr.Name,
+			On:         lr.State.On,
+			Brightness: lr.State.Brightness,
+			Hue:        lr.State.Hue,
+			Saturation: lr.State.Saturation,
+			Type:       lr.Type,
 		})
 	}
 
@@ -168,22 +168,22 @@ func (c *Client) GetLight(id string) (*Light, error) {
 	}
 
 	return &Light{
-		ID:   id,
-		Name: lr.Name,
-		On:   lr.State.On,
-		Bri:  lr.State.Bri,
-		Hue:  lr.State.Hue,
-		Sat:  lr.State.Sat,
-		Type: lr.Type,
+		ID:         id,
+		Name:       lr.Name,
+		On:         lr.State.On,
+		Brightness: lr.State.Brightness,
+		Hue:        lr.State.Hue,
+		Saturation: lr.State.Saturation,
+		Type:       lr.Type,
 	}, nil
 }
 
 // LightState represents the state to set on a light.
 type LightState struct {
-	On  *bool `json:"on,omitempty"`
-	Bri *int  `json:"bri,omitempty"`
-	Hue *int  `json:"hue,omitempty"`
-	Sat *int  `json:"sat,omitempty"`
+	On         *bool `json:"on,omitempty"`
+	Brightness *int  `json:"bri,omitempty"`
+	Hue        *int  `json:"hue,omitempty"`
+	Saturation *int  `json:"sat,omitempty"`
 }
 
 // SetLightState changes the state of a light.

@@ -107,10 +107,10 @@ func TestGetLights(t *testing.T) {
 		t.Fatal("missing expected lights")
 	}
 
-	if light1.Name != "Living Room" || !light1.On || light1.Bri != 254 {
+	if light1.Name != "Living Room" || !light1.On || light1.Brightness != 254 {
 		t.Errorf("light1 data mismatch: %+v", light1)
 	}
-	if light2.Name != "Bedroom" || light2.On || light2.Bri != 100 {
+	if light2.Name != "Bedroom" || light2.On || light2.Brightness != 100 {
 		t.Errorf("light2 data mismatch: %+v", light2)
 	}
 }
