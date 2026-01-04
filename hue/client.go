@@ -224,6 +224,36 @@ func (c *Client) SetLightState(id string, state LightState) error {
 	return c.checkError(data)
 }
 
+// RenameLight changes the name of a light.
+func (c *Client) RenameLight(id string, name string) error {
+	url := fmt.Sprintf("%s/%s/lights/%s", c.baseURL(), c.username, id)
+
+	body := map[string]string{"name": name}
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("marshal request: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPut, url, bytes.NewReader(jsonBody))
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("put request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read response: %w", err)
+	}
+
+	return c.checkError(data)
+}
+
 // checkError checks if the response contains an error.
 // Bridge errors come as: [{"error":{"type":1,"address":"/...","description":"..."}}]
 func (c *Client) checkError(data []byte) error {
@@ -322,6 +352,36 @@ func (c *Client) SetGroupState(id string, action GroupAction) error {
 	url := fmt.Sprintf("%s/%s/groups/%s/action", c.baseURL(), c.username, id)
 
 	jsonBody, err := json.Marshal(action)
+	if err != nil {
+		return fmt.Errorf("marshal request: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPut, url, bytes.NewReader(jsonBody))
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("put request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read response: %w", err)
+	}
+
+	return c.checkError(data)
+}
+
+// RenameGroup changes the name of a group.
+func (c *Client) RenameGroup(id string, name string) error {
+	url := fmt.Sprintf("%s/%s/groups/%s", c.baseURL(), c.username, id)
+
+	body := map[string]string{"name": name}
+	jsonBody, err := json.Marshal(body)
 	if err != nil {
 		return fmt.Errorf("marshal request: %w", err)
 	}

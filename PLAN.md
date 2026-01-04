@@ -10,7 +10,7 @@
 ## v2 Scope
 
 - [x] Groups (list, toggle)
-- [ ] Light renaming
+- [x] Light/Group renaming (CLI --name flag, TUI 'r' key)
 - [ ] Scenes (list, activate)
 
 ## Backlog

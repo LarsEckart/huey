@@ -13,6 +13,7 @@ var (
 	groupFlagOn     bool
 	groupFlagOff    bool
 	groupFlagToggle bool
+	groupFlagName   string
 )
 
 // GroupCmd controls a single group.
@@ -22,6 +23,12 @@ var GroupCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		groupID := args[0]
+
+		// Handle rename separately
+		if groupFlagName != "" {
+			renameGroup(groupID, groupFlagName)
+			return
+		}
 
 		// Validate flags - exactly one must be set
 		flagCount := 0
@@ -139,8 +146,25 @@ func showGroup(groupID string) {
 	fmt.Printf("Lights: %v\n", group.Lights)
 }
 
+func renameGroup(groupID, name string) {
+	cfg, err := auth.EnsureAuthenticated()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	client := hue.NewClient(cfg.BridgeIP, cfg.Username)
+	if err := client.RenameGroup(groupID, name); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Group %s renamed to %q\n", groupID, name)
+}
+
 func init() {
 	GroupCmd.Flags().BoolVar(&groupFlagOn, "on", false, "Turn all lights in group on")
 	GroupCmd.Flags().BoolVar(&groupFlagOff, "off", false, "Turn all lights in group off")
 	GroupCmd.Flags().BoolVar(&groupFlagToggle, "toggle", false, "Toggle group state")
+	GroupCmd.Flags().StringVar(&groupFlagName, "name", "", "Rename the group")
 }

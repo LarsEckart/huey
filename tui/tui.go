@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/LarsEckart/huey/hue"
@@ -15,6 +16,14 @@ type Tab int
 const (
 	TabLights Tab = iota
 	TabGroups
+)
+
+// Mode represents the current interaction mode.
+type Mode int
+
+const (
+	ModeNormal Mode = iota
+	ModeRename
 )
 
 // Styles
@@ -56,16 +65,22 @@ var (
 
 	helpStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("241"))
+
+	inputStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("229"))
 )
 
 // keyMap defines key bindings.
 type keyMap struct {
-	Up       key.Binding
-	Down     key.Binding
-	Toggle   key.Binding
-	TabNext  key.Binding
-	TabPrev  key.Binding
-	Quit     key.Binding
+	Up      key.Binding
+	Down    key.Binding
+	Toggle  key.Binding
+	Rename  key.Binding
+	TabNext key.Binding
+	TabPrev key.Binding
+	Quit    key.Binding
+	Confirm key.Binding
+	Cancel  key.Binding
 }
 
 var keys = keyMap{
@@ -81,6 +96,10 @@ var keys = keyMap{
 		key.WithKeys("enter", " "),
 		key.WithHelp("enter", "toggle"),
 	),
+	Rename: key.NewBinding(
+		key.WithKeys("r"),
+		key.WithHelp("r", "rename"),
+	),
 	TabNext: key.NewBinding(
 		key.WithKeys("tab", "l"),
 		key.WithHelp("tab", "next tab"),
@@ -93,25 +112,44 @@ var keys = keyMap{
 		key.WithKeys("q", "esc", "ctrl+c"),
 		key.WithHelp("q", "quit"),
 	),
+	Confirm: key.NewBinding(
+		key.WithKeys("enter"),
+		key.WithHelp("enter", "confirm"),
+	),
+	Cancel: key.NewBinding(
+		key.WithKeys("esc"),
+		key.WithHelp("esc", "cancel"),
+	),
 }
 
 // Model is the Bubble Tea model for the TUI.
 type Model struct {
-	client       *hue.Client
-	lights       []hue.Light
-	groups       []hue.Group
-	activeTab    Tab
-	lightCursor  int
-	groupCursor  int
-	err          error
-	quitting     bool
+	client      *hue.Client
+	lights      []hue.Light
+	groups      []hue.Group
+	activeTab   Tab
+	lightCursor int
+	groupCursor int
+	err         error
+	quitting    bool
+
+	// Rename mode
+	mode      Mode
+	textInput textinput.Model
+	renameID  string // ID of item being renamed
 }
 
 // New creates a new TUI model.
 func New(client *hue.Client) Model {
+	ti := textinput.New()
+	ti.CharLimit = 32 // Hue names limited to 32 chars
+	ti.Width = 24
+
 	return Model{
 		client:    client,
 		activeTab: TabLights,
+		mode:      ModeNormal,
+		textInput: ti,
 	}
 }
 
@@ -136,6 +174,16 @@ type lightToggledMsg struct {
 type groupToggledMsg struct {
 	id    string
 	newOn bool
+}
+
+type lightRenamedMsg struct {
+	id      string
+	newName string
+}
+
+type groupRenamedMsg struct {
+	id      string
+	newName string
 }
 
 // Init initializes the model and loads data.
@@ -182,8 +230,31 @@ func (m Model) toggleGroup(id string, anyOn bool) tea.Cmd {
 	}
 }
 
+func (m Model) renameLight(id, name string) tea.Cmd {
+	return func() tea.Msg {
+		if err := m.client.RenameLight(id, name); err != nil {
+			return errMsg{err: err}
+		}
+		return lightRenamedMsg{id: id, newName: name}
+	}
+}
+
+func (m Model) renameGroup(id, name string) tea.Cmd {
+	return func() tea.Msg {
+		if err := m.client.RenameGroup(id, name); err != nil {
+			return errMsg{err: err}
+		}
+		return groupRenamedMsg{id: id, newName: name}
+	}
+}
+
 // Update handles messages and updates the model.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Handle rename mode separately
+	if m.mode == ModeRename {
+		return m.updateRenameMode(msg)
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
@@ -227,6 +298,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				group := m.groups[m.groupCursor]
 				return m, m.toggleGroup(group.ID, group.AnyOn)
 			}
+
+		case key.Matches(msg, keys.Rename):
+			// Enter rename mode
+			if m.activeTab == TabLights && len(m.lights) > 0 {
+				light := m.lights[m.lightCursor]
+				m.mode = ModeRename
+				m.renameID = light.ID
+				m.textInput.SetValue(light.Name)
+				m.textInput.Focus()
+				m.textInput.CursorEnd()
+				return m, textinput.Blink
+			} else if m.activeTab == TabGroups && len(m.groups) > 0 {
+				group := m.groups[m.groupCursor]
+				m.mode = ModeRename
+				m.renameID = group.ID
+				m.textInput.SetValue(group.Name)
+				m.textInput.Focus()
+				m.textInput.CursorEnd()
+				return m, textinput.Blink
+			}
 		}
 
 	case lightsLoadedMsg:
@@ -256,11 +347,59 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.err = nil
 
+	case lightRenamedMsg:
+		for i := range m.lights {
+			if m.lights[i].ID == msg.id {
+				m.lights[i].Name = msg.newName
+				break
+			}
+		}
+		m.err = nil
+
+	case groupRenamedMsg:
+		for i := range m.groups {
+			if m.groups[i].ID == msg.id {
+				m.groups[i].Name = msg.newName
+				break
+			}
+		}
+		m.err = nil
+
 	case errMsg:
 		m.err = msg.err
 	}
 
 	return m, nil
+}
+
+// updateRenameMode handles input in rename mode.
+func (m Model) updateRenameMode(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, keys.Confirm):
+			// Submit rename
+			newName := m.textInput.Value()
+			m.mode = ModeNormal
+			m.textInput.Blur()
+
+			if m.activeTab == TabLights {
+				return m, m.renameLight(m.renameID, newName)
+			}
+			return m, m.renameGroup(m.renameID, newName)
+
+		case key.Matches(msg, keys.Cancel):
+			// Cancel rename
+			m.mode = ModeNormal
+			m.textInput.Blur()
+			return m, nil
+		}
+	}
+
+	// Forward other messages to text input
+	var cmd tea.Cmd
+	m.textInput, cmd = m.textInput.Update(msg)
+	return m, cmd
 }
 
 // View renders the UI.
@@ -285,7 +424,12 @@ func (m Model) View() string {
 		s += m.renderGroups()
 	}
 
-	s += "\n" + helpStyle.Render("↑/↓ navigate • enter toggle • tab switch • q quit")
+	// Render help based on mode
+	if m.mode == ModeRename {
+		s += "\n" + helpStyle.Render("enter confirm • esc cancel")
+	} else {
+		s += "\n" + helpStyle.Render("↑/↓ navigate • enter toggle • r rename • tab switch • q quit")
+	}
 
 	return s
 }
@@ -313,7 +457,8 @@ func (m Model) renderLights() string {
 	for i, light := range m.lights {
 		cursor := "  "
 		style := normalStyle
-		if i == m.lightCursor {
+		isSelected := i == m.lightCursor
+		if isSelected {
 			cursor = "> "
 			style = selectedStyle
 		}
@@ -325,7 +470,15 @@ func (m Model) renderLights() string {
 			status = offStyle.Render("○ off")
 		}
 
-		line := fmt.Sprintf("%s%-3s %-24s %s", cursor, light.ID, light.Name, status)
+		// Show text input if renaming this light
+		var name string
+		if m.mode == ModeRename && isSelected && m.renameID == light.ID {
+			name = m.textInput.View()
+		} else {
+			name = fmt.Sprintf("%-24s", light.Name)
+		}
+
+		line := fmt.Sprintf("%s%-3s %s %s", cursor, light.ID, name, status)
 		s += style.Render(line) + "\n"
 	}
 
@@ -341,7 +494,8 @@ func (m Model) renderGroups() string {
 	for i, group := range m.groups {
 		cursor := "  "
 		style := normalStyle
-		if i == m.groupCursor {
+		isSelected := i == m.groupCursor
+		if isSelected {
 			cursor = "> "
 			style = selectedStyle
 		}
@@ -356,7 +510,16 @@ func (m Model) renderGroups() string {
 		}
 
 		groupType := typeStyle.Render(fmt.Sprintf("(%s)", group.Type))
-		line := fmt.Sprintf("%s%-3s %-20s %-8s %s", cursor, group.ID, group.Name, groupType, status)
+
+		// Show text input if renaming this group
+		var name string
+		if m.mode == ModeRename && isSelected && m.renameID == group.ID {
+			name = m.textInput.View()
+		} else {
+			name = fmt.Sprintf("%-20s", group.Name)
+		}
+
+		line := fmt.Sprintf("%s%-3s %s %-8s %s", cursor, group.ID, name, groupType, status)
 		s += style.Render(line) + "\n"
 	}
 
