@@ -1108,7 +1108,7 @@ func (m Model) renderLights() string {
 			name = fmt.Sprintf("%-24s", light.Name)
 		}
 
-		line := fmt.Sprintf("%s%-3s %s %s", cursor, light.ID, name, status)
+		line := fmt.Sprintf("%s%s %s", cursor, name, status)
 		s += style.Render(line) + "\n"
 	}
 
@@ -1152,7 +1152,7 @@ func (m Model) renderGroups() string {
 			name = fmt.Sprintf("%-20s", group.Name)
 		}
 
-		line := fmt.Sprintf("%s%-3s %s %-8s %s", cursor, group.ID, name, groupType, status)
+		line := fmt.Sprintf("%s%s %-8s %s", cursor, name, groupType, status)
 		s += style.Render(line) + "\n"
 	}
 
@@ -1227,9 +1227,9 @@ func (m Model) renderGroupInfo() string {
 			} else {
 				status = offStyle.Render("○ off")
 			}
-			s += fmt.Sprintf("  %-3s %-24s %s\n", lightID, light.Name, status)
+			s += fmt.Sprintf("  %-24s %s\n", light.Name, status)
 		} else {
-			s += fmt.Sprintf("  %-3s (unknown)\n", lightID)
+			s += fmt.Sprintf("  (unknown light)\n")
 		}
 	}
 
@@ -1293,7 +1293,7 @@ func (m Model) renderCreateSceneGroup() string {
 			style = selectedStyle
 		}
 
-		line := fmt.Sprintf("%s%-3s %s", cursor, group.ID, group.Name)
+		line := fmt.Sprintf("%s%s", cursor, group.Name)
 		s += style.Render(line) + "\n"
 	}
 
