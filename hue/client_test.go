@@ -225,3 +225,61 @@ func TestSetLightState_Error(t *testing.T) {
 		t.Errorf("expected 'resource not available' error, got: %v", err)
 	}
 }
+
+func TestGetGroups_LightsSortedNumerically(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/testuser/groups" {
+			t.Errorf("expected /api/testuser/groups, got %s", r.URL.Path)
+		}
+
+		// Lights in non-numeric order
+		w.Write([]byte(`{
+			"1": {
+				"name": "Office",
+				"type": "Room",
+				"lights": ["10", "2", "1", "3"],
+				"state": {"all_on": true, "any_on": true}
+			},
+			"2": {
+				"name": "Living Room",
+				"type": "Room",
+				"lights": ["5", "12", "4"],
+				"state": {"all_on": false, "any_on": true}
+			}
+		}`))
+	}))
+	defer server.Close()
+
+	addr := strings.TrimPrefix(server.URL, "http://")
+	client := NewClient(addr, "testuser")
+
+	groups, err := client.GetGroups()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(groups) != 2 {
+		t.Fatalf("expected 2 groups, got %d", len(groups))
+	}
+
+	// Groups should be sorted by ID: 1, 2
+	if groups[0].ID != "1" || groups[1].ID != "2" {
+		t.Errorf("groups not sorted by ID: got %s, %s", groups[0].ID, groups[1].ID)
+	}
+
+	// Group 1 lights should be sorted: 1, 2, 3, 10
+	wantLights1 := []string{"1", "2", "3", "10"}
+	for i, lightID := range groups[0].Lights {
+		if lightID != wantLights1[i] {
+			t.Errorf("group 1 light %d: got %s, want %s", i, lightID, wantLights1[i])
+		}
+	}
+
+	// Group 2 lights should be sorted: 4, 5, 12
+	wantLights2 := []string{"4", "5", "12"}
+	for i, lightID := range groups[1].Lights {
+		if lightID != wantLights2[i] {
+			t.Errorf("group 2 light %d: got %s, want %s", i, lightID, wantLights2[i])
+		}
+	}
+}

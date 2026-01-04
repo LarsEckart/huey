@@ -130,6 +130,19 @@ func showGroup(groupID string) {
 		os.Exit(1)
 	}
 
+	// Fetch all lights to resolve names and states
+	lights, err := client.GetLights()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Build lookup map
+	lightByID := make(map[string]hue.Light)
+	for _, l := range lights {
+		lightByID[l.ID] = l
+	}
+
 	var status string
 	if group.AllOn {
 		status = "all on"
@@ -143,7 +156,19 @@ func showGroup(groupID string) {
 	fmt.Printf("Name:   %s\n", group.Name)
 	fmt.Printf("Type:   %s\n", group.Type)
 	fmt.Printf("State:  %s\n", status)
-	fmt.Printf("Lights: %v\n", group.Lights)
+	fmt.Printf("Lights:\n")
+	for _, lightID := range group.Lights {
+		light, ok := lightByID[lightID]
+		if ok {
+			state := "off"
+			if light.On {
+				state = "on"
+			}
+			fmt.Printf("  %s. %s (%s)\n", lightID, light.Name, state)
+		} else {
+			fmt.Printf("  %s. (unknown)\n", lightID)
+		}
+	}
 }
 
 func renameGroup(groupID, name string) {

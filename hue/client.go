@@ -322,11 +322,19 @@ func (c *Client) GetGroups() ([]Group, error) {
 
 	groups := make([]Group, 0, len(groupsMap))
 	for id, gr := range groupsMap {
+		// Sort light IDs numerically within each group
+		lights := gr.Lights
+		sort.Slice(lights, func(i, j int) bool {
+			iID, _ := strconv.Atoi(lights[i])
+			jID, _ := strconv.Atoi(lights[j])
+			return iID < jID
+		})
+
 		groups = append(groups, Group{
 			ID:     id,
 			Name:   gr.Name,
 			Type:   gr.Type,
-			Lights: gr.Lights,
+			Lights: lights,
 			AllOn:  gr.State.AllOn,
 			AnyOn:  gr.State.AnyOn,
 		})

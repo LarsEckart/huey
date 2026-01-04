@@ -24,6 +24,7 @@ type Mode int
 const (
 	ModeNormal Mode = iota
 	ModeRename
+	ModeGroupInfo
 )
 
 // Styles
@@ -76,6 +77,7 @@ type keyMap struct {
 	Down    key.Binding
 	Toggle  key.Binding
 	Rename  key.Binding
+	Info    key.Binding
 	TabNext key.Binding
 	TabPrev key.Binding
 	Quit    key.Binding
@@ -99,6 +101,10 @@ var keys = keyMap{
 	Rename: key.NewBinding(
 		key.WithKeys("r"),
 		key.WithHelp("r", "rename"),
+	),
+	Info: key.NewBinding(
+		key.WithKeys("i"),
+		key.WithHelp("i", "info"),
 	),
 	TabNext: key.NewBinding(
 		key.WithKeys("tab", "l"),
@@ -137,6 +143,9 @@ type Model struct {
 	mode      Mode
 	textInput textinput.Model
 	renameID  string // ID of item being renamed
+
+	// Group info mode
+	infoGroupID string // ID of group being viewed
 }
 
 // New creates a new TUI model.
@@ -255,6 +264,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateRenameMode(msg)
 	}
 
+	// Handle group info mode
+	if m.mode == ModeGroupInfo {
+		return m.updateGroupInfoMode(msg)
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
@@ -318,6 +332,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.textInput.CursorEnd()
 				return m, textinput.Blink
 			}
+
+		case key.Matches(msg, keys.Info):
+			// Enter group info mode (only available on groups tab)
+			if m.activeTab == TabGroups && len(m.groups) > 0 {
+				group := m.groups[m.groupCursor]
+				m.mode = ModeGroupInfo
+				m.infoGroupID = group.ID
+				return m, nil
+			}
 		}
 
 	case lightsLoadedMsg:
@@ -372,6 +395,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// updateGroupInfoMode handles input in group info mode.
+func (m Model) updateGroupInfoMode(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, keys.Cancel), key.Matches(msg, keys.Quit):
+			m.mode = ModeNormal
+			m.infoGroupID = ""
+			return m, nil
+		}
+	}
+	return m, nil
+}
+
 // updateRenameMode handles input in rename mode.
 func (m Model) updateRenameMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -408,6 +445,11 @@ func (m Model) View() string {
 		return ""
 	}
 
+	// Group info mode has its own view
+	if m.mode == ModeGroupInfo {
+		return m.renderGroupInfo()
+	}
+
 	s := titleStyle.Render("huey - Hue Light Control") + "\n\n"
 
 	// Render tabs
@@ -427,6 +469,8 @@ func (m Model) View() string {
 	// Render help based on mode
 	if m.mode == ModeRename {
 		s += "\n" + helpStyle.Render("enter confirm • esc cancel")
+	} else if m.activeTab == TabGroups {
+		s += "\n" + helpStyle.Render("↑/↓ navigate • enter toggle • r rename • i info • tab switch • q quit")
 	} else {
 		s += "\n" + helpStyle.Render("↑/↓ navigate • enter toggle • r rename • tab switch • q quit")
 	}
@@ -523,6 +567,49 @@ func (m Model) renderGroups() string {
 		s += style.Render(line) + "\n"
 	}
 
+	return s
+}
+
+func (m Model) renderGroupInfo() string {
+	// Find the group
+	var group *hue.Group
+	for i := range m.groups {
+		if m.groups[i].ID == m.infoGroupID {
+			group = &m.groups[i]
+			break
+		}
+	}
+
+	if group == nil {
+		return "Group not found\n\n" + helpStyle.Render("esc back")
+	}
+
+	// Build light lookup
+	lightByID := make(map[string]hue.Light)
+	for _, l := range m.lights {
+		lightByID[l.ID] = l
+	}
+
+	s := titleStyle.Render(fmt.Sprintf("Group: %s", group.Name)) + "\n"
+	s += typeStyle.Render(fmt.Sprintf("Type: %s", group.Type)) + "\n\n"
+
+	s += "Lights:\n"
+	for _, lightID := range group.Lights {
+		light, ok := lightByID[lightID]
+		if ok {
+			var status string
+			if light.On {
+				status = onStyle.Render("● on")
+			} else {
+				status = offStyle.Render("○ off")
+			}
+			s += fmt.Sprintf("  %-3s %-24s %s\n", lightID, light.Name, status)
+		} else {
+			s += fmt.Sprintf("  %-3s (unknown)\n", lightID)
+		}
+	}
+
+	s += "\n" + helpStyle.Render("esc back")
 	return s
 }
 
