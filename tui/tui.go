@@ -105,8 +105,8 @@ var keys = keyMap{
 		key.WithHelp("↓", "down"),
 	),
 	Toggle: key.NewBinding(
-		key.WithKeys("enter", " "),
-		key.WithHelp("enter", "toggle"),
+		key.WithKeys(" "),
+		key.WithHelp("space", "toggle"),
 	),
 	Rename: key.NewBinding(
 		key.WithKeys("r"),
@@ -639,24 +639,25 @@ func (m Model) updateCreateGroupNameMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) updateCreateGroupLightsMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "up", "k":
+		switch {
+		case key.Matches(msg, keys.Up):
 			if m.createLightCursor > 0 {
 				m.createLightCursor--
 			}
 
-		case "down", "j":
+		case key.Matches(msg, keys.Down):
 			if m.createLightCursor < len(m.lights)-1 {
 				m.createLightCursor++
 			}
 
-		case " ": // Space only for toggle
+		case key.Matches(msg, keys.Toggle):
+			// Toggle light selection
 			if len(m.lights) > 0 {
 				light := m.lights[m.createLightCursor]
 				m.createLightSelected[light.ID] = !m.createLightSelected[light.ID]
 			}
 
-		case "enter": // Enter only for confirm
+		case key.Matches(msg, keys.Confirm):
 			// Collect selected light IDs
 			var lightIDs []string
 			for _, light := range m.lights {
@@ -667,7 +668,7 @@ func (m Model) updateCreateGroupLightsMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.mode = ModeNormal
 			return m, m.createGroup(m.createGroupName, m.createGroupType, lightIDs)
 
-		case "esc":
+		case key.Matches(msg, keys.Cancel):
 			m.mode = ModeNormal
 			return m, nil
 		}
@@ -754,9 +755,9 @@ func (m Model) View() string {
 	} else if m.mode == ModeDeleteConfirm {
 		s += "\n" + helpStyle.Render("y/enter delete • n/esc cancel")
 	} else if m.activeTab == TabGroups {
-		s += "\n" + helpStyle.Render("↑/↓ navigate • enter toggle • a add • r rename • d delete • i info • tab switch • q quit")
+		s += "\n" + helpStyle.Render("↑/↓ navigate • space toggle • a add • r rename • d delete • i info • tab switch • q quit")
 	} else {
-		s += "\n" + helpStyle.Render("↑/↓ navigate • enter toggle • r rename • tab switch • q quit")
+		s += "\n" + helpStyle.Render("↑/↓ navigate • space toggle • r rename • tab switch • q quit")
 	}
 
 	return s

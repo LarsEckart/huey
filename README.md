@@ -32,7 +32,7 @@ huey
 **Navigation:**
 - **Tab** or **l/h** — Switch between Lights and Groups tabs
 - **↑/↓** or **j/k** — Navigate list
-- **Enter** or **Space** — Toggle selected light/group
+- **Space** — Toggle selected light/group
 - **r** — Rename selected item
 - **q** — Quit
 
