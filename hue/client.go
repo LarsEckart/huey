@@ -244,3 +244,104 @@ func (c *Client) checkError(data []byte) error {
 
 	return nil
 }
+
+// Group represents a Hue group (room, zone, etc.).
+type Group struct {
+	ID      string
+	Name    string
+	Type    string   // "Room", "Zone", "LightGroup", etc.
+	Lights  []string // Light IDs in this group
+	AllOn   bool     // All lights in group are on
+	AnyOn   bool     // At least one light is on
+}
+
+// groupResponse matches the JSON structure from the bridge for a single group.
+type groupResponse struct {
+	Name   string   `json:"name"`
+	Type   string   `json:"type"`
+	Lights []string `json:"lights"`
+	State  struct {
+		AllOn bool `json:"all_on"`
+		AnyOn bool `json:"any_on"`
+	} `json:"state"`
+}
+
+// GetGroups returns all groups from the bridge.
+func (c *Client) GetGroups() ([]Group, error) {
+	url := fmt.Sprintf("%s/%s/groups", c.baseURL(), c.username)
+	resp, err := c.httpClient.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("get request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+
+	if err := c.checkError(data); err != nil {
+		return nil, err
+	}
+
+	// Bridge returns map of ID -> group object
+	var groupsMap map[string]groupResponse
+	if err := json.Unmarshal(data, &groupsMap); err != nil {
+		return nil, fmt.Errorf("unmarshal response: %w", err)
+	}
+
+	groups := make([]Group, 0, len(groupsMap))
+	for id, gr := range groupsMap {
+		groups = append(groups, Group{
+			ID:     id,
+			Name:   gr.Name,
+			Type:   gr.Type,
+			Lights: gr.Lights,
+			AllOn:  gr.State.AllOn,
+			AnyOn:  gr.State.AnyOn,
+		})
+	}
+
+	// Sort by ID numerically
+	sort.Slice(groups, func(i, j int) bool {
+		iID, _ := strconv.Atoi(groups[i].ID)
+		jID, _ := strconv.Atoi(groups[j].ID)
+		return iID < jID
+	})
+
+	return groups, nil
+}
+
+// GroupAction represents the action to set on a group.
+type GroupAction struct {
+	On *bool `json:"on,omitempty"`
+}
+
+// SetGroupState changes the state of all lights in a group.
+func (c *Client) SetGroupState(id string, action GroupAction) error {
+	url := fmt.Sprintf("%s/%s/groups/%s/action", c.baseURL(), c.username, id)
+
+	jsonBody, err := json.Marshal(action)
+	if err != nil {
+		return fmt.Errorf("marshal request: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPut, url, bytes.NewReader(jsonBody))
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("put request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read response: %w", err)
+	}
+
+	return c.checkError(data)
+}

@@ -33,6 +33,8 @@ var rootCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(cmd.LightsCmd)
 	rootCmd.AddCommand(cmd.LightCmd)
+	rootCmd.AddCommand(cmd.GroupsCmd)
+	rootCmd.AddCommand(cmd.GroupCmd)
 }
 
 func main() {

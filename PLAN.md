@@ -9,7 +9,7 @@
 
 ## v2 Scope
 
-- [ ] Groups (list, toggle)
+- [x] Groups (list, toggle)
 - [ ] Light renaming
 - [ ] Scenes (list, activate)
 
