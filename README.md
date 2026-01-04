@@ -29,11 +29,20 @@ Run without arguments to open the interactive interface:
 huey
 ```
 
-- **↑/↓** or **j/k** — Navigate lights
-- **Enter** or **Space** — Toggle selected light
+**Navigation:**
+- **Tab** or **l/h** — Switch between Lights and Groups tabs
+- **↑/↓** or **j/k** — Navigate list
+- **Enter** or **Space** — Toggle selected light/group
+- **r** — Rename selected item
 - **q** — Quit
 
+**Groups tab only:**
+- **i** — Show group info (lights in group)
+- **d** — Delete group (with confirmation)
+
 ### Command Line
+
+#### Lights
 
 List all lights:
 ```bash
@@ -45,15 +54,45 @@ Show light details:
 huey light 1
 ```
 
-Turn a light on/off:
+Control a light:
 ```bash
 huey light 1 --on
 huey light 1 --off
+huey light 1 --toggle
 ```
 
-Toggle a light:
+Rename a light:
 ```bash
-huey light 1 --toggle
+huey light 1 --name "Desk Lamp"
+```
+
+#### Groups
+
+List all groups:
+```bash
+huey groups
+```
+
+Show group details:
+```bash
+huey group 1
+```
+
+Control a group:
+```bash
+huey group 1 --on
+huey group 1 --off
+huey group 1 --toggle
+```
+
+Rename a group:
+```bash
+huey group 1 --name "Living Room"
+```
+
+Delete a group:
+```bash
+huey group 1 --delete
 ```
 
 ## Finding Your Bridge IP
