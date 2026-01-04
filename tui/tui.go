@@ -26,6 +26,9 @@ const (
 	ModeRename
 	ModeGroupInfo
 	ModeDeleteConfirm
+	ModeCreateGroupType
+	ModeCreateGroupName
+	ModeCreateGroupLights
 )
 
 // Styles
@@ -79,6 +82,7 @@ type keyMap struct {
 	Toggle  key.Binding
 	Rename  key.Binding
 	Delete  key.Binding
+	Add     key.Binding
 	Info    key.Binding
 	TabNext key.Binding
 	TabPrev key.Binding
@@ -87,6 +91,8 @@ type keyMap struct {
 	Cancel  key.Binding
 	Yes     key.Binding
 	No      key.Binding
+	Room    key.Binding
+	Zone    key.Binding
 }
 
 var keys = keyMap{
@@ -109,6 +115,10 @@ var keys = keyMap{
 	Delete: key.NewBinding(
 		key.WithKeys("d"),
 		key.WithHelp("d", "delete"),
+	),
+	Add: key.NewBinding(
+		key.WithKeys("a"),
+		key.WithHelp("a", "add"),
 	),
 	Info: key.NewBinding(
 		key.WithKeys("i"),
@@ -142,6 +152,14 @@ var keys = keyMap{
 		key.WithKeys("n"),
 		key.WithHelp("n", "no"),
 	),
+	Room: key.NewBinding(
+		key.WithKeys("r"),
+		key.WithHelp("r", "room"),
+	),
+	Zone: key.NewBinding(
+		key.WithKeys("z"),
+		key.WithHelp("z", "zone"),
+	),
 }
 
 // Model is the Bubble Tea model for the TUI.
@@ -166,6 +184,13 @@ type Model struct {
 	// Delete confirmation mode
 	deleteGroupID   string // ID of group to delete
 	deleteGroupName string // Name of group to delete (for display)
+
+	// Create group mode
+	createGroupType     string   // "Room" or "Zone"
+	createGroupName     string   // Name entered by user
+	createGroupLights   []string // Selected light IDs
+	createLightCursor   int      // Cursor for light picker
+	createLightSelected map[string]bool // Which lights are selected
 }
 
 // New creates a new TUI model.
@@ -217,6 +242,10 @@ type groupRenamedMsg struct {
 
 type groupDeletedMsg struct {
 	id string
+}
+
+type groupCreatedMsg struct {
+	group hue.Group
 }
 
 // Init initializes the model and loads data.
@@ -290,6 +319,25 @@ func (m Model) deleteGroup(id string) tea.Cmd {
 	}
 }
 
+func (m Model) createGroup(name, groupType string, lightIDs []string) tea.Cmd {
+	return func() tea.Msg {
+		id, err := m.client.CreateGroup(name, groupType, lightIDs)
+		if err != nil {
+			return errMsg{err: err}
+		}
+		return groupCreatedMsg{
+			group: hue.Group{
+				ID:     id,
+				Name:   name,
+				Type:   groupType,
+				Lights: lightIDs,
+				AllOn:  false,
+				AnyOn:  false,
+			},
+		}
+	}
+}
+
 // Update handles messages and updates the model.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Handle rename mode separately
@@ -305,6 +353,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Handle delete confirmation mode
 	if m.mode == ModeDeleteConfirm {
 		return m.updateDeleteConfirmMode(msg)
+	}
+
+	// Handle create group modes
+	if m.mode == ModeCreateGroupType {
+		return m.updateCreateGroupTypeMode(msg)
+	}
+	if m.mode == ModeCreateGroupName {
+		return m.updateCreateGroupNameMode(msg)
+	}
+	if m.mode == ModeCreateGroupLights {
+		return m.updateCreateGroupLightsMode(msg)
 	}
 
 	switch msg := msg.(type) {
@@ -389,6 +448,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.deleteGroupName = group.Name
 				return m, nil
 			}
+
+		case key.Matches(msg, keys.Add):
+			// Enter create group mode (only available on groups tab)
+			if m.activeTab == TabGroups {
+				m.mode = ModeCreateGroupType
+				m.createGroupType = ""
+				m.createGroupName = ""
+				m.createGroupLights = nil
+				m.createLightCursor = 0
+				m.createLightSelected = make(map[string]bool)
+				return m, nil
+			}
 		}
 
 	case lightsLoadedMsg:
@@ -454,6 +525,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.err = nil
 
+	case groupCreatedMsg:
+		// Add group to list and select it
+		m.groups = append(m.groups, msg.group)
+		m.groupCursor = len(m.groups) - 1
+		m.err = nil
+		// Refresh to get accurate state
+		return m, m.loadGroups
+
 	case errMsg:
 		m.err = msg.err
 	}
@@ -493,6 +572,104 @@ func (m Model) updateDeleteConfirmMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.mode = ModeNormal
 			m.deleteGroupID = ""
 			m.deleteGroupName = ""
+			return m, nil
+		}
+	}
+	return m, nil
+}
+
+// updateCreateGroupTypeMode handles type selection (Room/Zone).
+func (m Model) updateCreateGroupTypeMode(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, keys.Room):
+			m.createGroupType = "Room"
+			m.mode = ModeCreateGroupName
+			m.textInput.SetValue("")
+			m.textInput.Focus()
+			return m, textinput.Blink
+
+		case key.Matches(msg, keys.Zone):
+			m.createGroupType = "Zone"
+			m.mode = ModeCreateGroupName
+			m.textInput.SetValue("")
+			m.textInput.Focus()
+			return m, textinput.Blink
+
+		case key.Matches(msg, keys.Cancel):
+			m.mode = ModeNormal
+			return m, nil
+		}
+	}
+	return m, nil
+}
+
+// updateCreateGroupNameMode handles name entry.
+func (m Model) updateCreateGroupNameMode(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, keys.Confirm):
+			name := m.textInput.Value()
+			if name == "" {
+				return m, nil // Don't proceed with empty name
+			}
+			m.createGroupName = name
+			m.textInput.Blur()
+			m.mode = ModeCreateGroupLights
+			m.createLightCursor = 0
+			m.createLightSelected = make(map[string]bool)
+			return m, nil
+
+		case key.Matches(msg, keys.Cancel):
+			m.textInput.Blur()
+			m.mode = ModeNormal
+			return m, nil
+		}
+	}
+
+	// Forward other messages to text input
+	var cmd tea.Cmd
+	m.textInput, cmd = m.textInput.Update(msg)
+	return m, cmd
+}
+
+// updateCreateGroupLightsMode handles light selection.
+func (m Model) updateCreateGroupLightsMode(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, keys.Up):
+			if m.createLightCursor > 0 {
+				m.createLightCursor--
+			}
+
+		case key.Matches(msg, keys.Down):
+			if m.createLightCursor < len(m.lights)-1 {
+				m.createLightCursor++
+			}
+
+		case key.Matches(msg, keys.Toggle):
+			// Toggle light selection
+			if len(m.lights) > 0 {
+				light := m.lights[m.createLightCursor]
+				m.createLightSelected[light.ID] = !m.createLightSelected[light.ID]
+			}
+
+		case key.Matches(msg, keys.Confirm):
+			// Collect selected light IDs
+			var lightIDs []string
+			for _, light := range m.lights {
+				if m.createLightSelected[light.ID] {
+					lightIDs = append(lightIDs, light.ID)
+				}
+			}
+			m.mode = ModeNormal
+			return m, m.createGroup(m.createGroupName, m.createGroupType, lightIDs)
+
+		case key.Matches(msg, keys.Cancel):
+			m.mode = ModeNormal
 			return m, nil
 		}
 	}
@@ -540,6 +717,17 @@ func (m Model) View() string {
 		return m.renderGroupInfo()
 	}
 
+	// Create group modes have their own views
+	if m.mode == ModeCreateGroupType {
+		return m.renderCreateGroupType()
+	}
+	if m.mode == ModeCreateGroupName {
+		return m.renderCreateGroupName()
+	}
+	if m.mode == ModeCreateGroupLights {
+		return m.renderCreateGroupLights()
+	}
+
 	s := titleStyle.Render("huey - Hue Light Control") + "\n\n"
 
 	// Render tabs
@@ -567,7 +755,7 @@ func (m Model) View() string {
 	} else if m.mode == ModeDeleteConfirm {
 		s += "\n" + helpStyle.Render("y/enter delete • n/esc cancel")
 	} else if m.activeTab == TabGroups {
-		s += "\n" + helpStyle.Render("↑/↓ navigate • enter toggle • r rename • d delete • i info • tab switch • q quit")
+		s += "\n" + helpStyle.Render("↑/↓ navigate • enter toggle • a add • r rename • d delete • i info • tab switch • q quit")
 	} else {
 		s += "\n" + helpStyle.Render("↑/↓ navigate • enter toggle • r rename • tab switch • q quit")
 	}
@@ -707,6 +895,50 @@ func (m Model) renderGroupInfo() string {
 	}
 
 	s += "\n" + helpStyle.Render("esc back")
+	return s
+}
+
+func (m Model) renderCreateGroupType() string {
+	s := titleStyle.Render("Create Group") + "\n\n"
+	s += "Select type:\n\n"
+	s += "  [r] Room — A light can only be in one room\n"
+	s += "  [z] Zone — A light can be in multiple zones\n"
+	s += "\n" + helpStyle.Render("r room • z zone • esc cancel")
+	return s
+}
+
+func (m Model) renderCreateGroupName() string {
+	s := titleStyle.Render(fmt.Sprintf("Create %s", m.createGroupType)) + "\n\n"
+	s += "Enter name:\n\n"
+	s += "  " + m.textInput.View() + "\n"
+	s += "\n" + helpStyle.Render("enter confirm • esc cancel")
+	return s
+}
+
+func (m Model) renderCreateGroupLights() string {
+	s := titleStyle.Render(fmt.Sprintf("Create %s: %s", m.createGroupType, m.createGroupName)) + "\n\n"
+	s += "Select lights (space to toggle):\n\n"
+
+	for i, light := range m.lights {
+		cursor := "  "
+		if i == m.createLightCursor {
+			cursor = "> "
+		}
+
+		checkbox := "[ ]"
+		if m.createLightSelected[light.ID] {
+			checkbox = "[✓]"
+		}
+
+		line := fmt.Sprintf("%s%s %s %s", cursor, checkbox, light.ID, light.Name)
+		if i == m.createLightCursor {
+			s += selectedStyle.Render(line) + "\n"
+		} else {
+			s += normalStyle.Render(line) + "\n"
+		}
+	}
+
+	s += "\n" + helpStyle.Render("↑/↓ navigate • space toggle • enter create • esc cancel")
 	return s
 }
 

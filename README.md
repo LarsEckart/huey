@@ -37,6 +37,7 @@ huey
 - **q** — Quit
 
 **Groups tab only:**
+- **a** — Add new group (room or zone)
 - **i** — Show group info (lights in group)
 - **d** — Delete group (with confirmation)
 
@@ -93,6 +94,12 @@ huey group 1 --name "Living Room"
 Delete a group:
 ```bash
 huey group 1 --delete
+```
+
+Create a group:
+```bash
+huey group-create --name "My Zone" --type zone --lights 1,2,3
+huey group-create --name "My Room" --type room
 ```
 
 ## Finding Your Bridge IP

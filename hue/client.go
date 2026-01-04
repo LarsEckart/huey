@@ -436,3 +436,54 @@ func (c *Client) DeleteGroup(id string) error {
 
 	return c.checkError(data)
 }
+
+// CreateGroup creates a new group on the bridge.
+// groupType should be "Room" or "Zone".
+func (c *Client) CreateGroup(name, groupType string, lightIDs []string) (string, error) {
+	url := fmt.Sprintf("%s/%s/groups", c.baseURL(), c.username)
+
+	body := map[string]any{
+		"name":   name,
+		"type":   groupType,
+		"lights": lightIDs,
+	}
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return "", fmt.Errorf("marshal request: %w", err)
+	}
+
+	resp, err := c.httpClient.Post(url, "application/json", bytes.NewReader(jsonBody))
+	if err != nil {
+		return "", fmt.Errorf("post request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read response: %w", err)
+	}
+
+	// Check for error
+	var results []map[string]any
+	if err := json.Unmarshal(data, &results); err != nil {
+		return "", fmt.Errorf("unmarshal response: %w", err)
+	}
+
+	if len(results) == 0 {
+		return "", fmt.Errorf("empty response from bridge")
+	}
+
+	if errData, ok := results[0]["error"].(map[string]any); ok {
+		desc := errData["description"]
+		return "", fmt.Errorf("bridge error: %v", desc)
+	}
+
+	// Extract ID from success response
+	if success, ok := results[0]["success"].(map[string]any); ok {
+		if id, ok := success["id"].(string); ok {
+			return id, nil
+		}
+	}
+
+	return "", fmt.Errorf("unexpected response format: %s", string(data))
+}

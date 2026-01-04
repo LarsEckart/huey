@@ -35,6 +35,7 @@ func init() {
 	rootCmd.AddCommand(cmd.LightCmd)
 	rootCmd.AddCommand(cmd.GroupsCmd)
 	rootCmd.AddCommand(cmd.GroupCmd)
+	rootCmd.AddCommand(cmd.GroupCreateCmd)
 }
 
 func main() {
