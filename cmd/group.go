@@ -14,6 +14,7 @@ var (
 	groupFlagOff    bool
 	groupFlagToggle bool
 	groupFlagName   string
+	groupFlagDelete bool
 )
 
 // GroupCmd controls a single group.
@@ -23,6 +24,12 @@ var GroupCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		groupID := args[0]
+
+		// Handle delete separately
+		if groupFlagDelete {
+			deleteGroup(groupID)
+			return
+		}
 
 		// Handle rename separately
 		if groupFlagName != "" {
@@ -187,9 +194,26 @@ func renameGroup(groupID, name string) {
 	fmt.Printf("Group %s renamed to %q\n", groupID, name)
 }
 
+func deleteGroup(groupID string) {
+	cfg, err := auth.EnsureAuthenticated()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	client := hue.NewClient(cfg.BridgeIP, cfg.Username)
+	if err := client.DeleteGroup(groupID); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Group %s deleted\n", groupID)
+}
+
 func init() {
 	GroupCmd.Flags().BoolVar(&groupFlagOn, "on", false, "Turn all lights in group on")
 	GroupCmd.Flags().BoolVar(&groupFlagOff, "off", false, "Turn all lights in group off")
 	GroupCmd.Flags().BoolVar(&groupFlagToggle, "toggle", false, "Toggle group state")
 	GroupCmd.Flags().StringVar(&groupFlagName, "name", "", "Rename the group")
+	GroupCmd.Flags().BoolVar(&groupFlagDelete, "delete", false, "Delete the group")
 }

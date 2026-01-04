@@ -25,6 +25,7 @@ const (
 	ModeNormal Mode = iota
 	ModeRename
 	ModeGroupInfo
+	ModeDeleteConfirm
 )
 
 // Styles
@@ -77,12 +78,15 @@ type keyMap struct {
 	Down    key.Binding
 	Toggle  key.Binding
 	Rename  key.Binding
+	Delete  key.Binding
 	Info    key.Binding
 	TabNext key.Binding
 	TabPrev key.Binding
 	Quit    key.Binding
 	Confirm key.Binding
 	Cancel  key.Binding
+	Yes     key.Binding
+	No      key.Binding
 }
 
 var keys = keyMap{
@@ -101,6 +105,10 @@ var keys = keyMap{
 	Rename: key.NewBinding(
 		key.WithKeys("r"),
 		key.WithHelp("r", "rename"),
+	),
+	Delete: key.NewBinding(
+		key.WithKeys("d"),
+		key.WithHelp("d", "delete"),
 	),
 	Info: key.NewBinding(
 		key.WithKeys("i"),
@@ -126,6 +134,14 @@ var keys = keyMap{
 		key.WithKeys("esc"),
 		key.WithHelp("esc", "cancel"),
 	),
+	Yes: key.NewBinding(
+		key.WithKeys("y"),
+		key.WithHelp("y", "yes"),
+	),
+	No: key.NewBinding(
+		key.WithKeys("n"),
+		key.WithHelp("n", "no"),
+	),
 }
 
 // Model is the Bubble Tea model for the TUI.
@@ -146,6 +162,10 @@ type Model struct {
 
 	// Group info mode
 	infoGroupID string // ID of group being viewed
+
+	// Delete confirmation mode
+	deleteGroupID   string // ID of group to delete
+	deleteGroupName string // Name of group to delete (for display)
 }
 
 // New creates a new TUI model.
@@ -193,6 +213,10 @@ type lightRenamedMsg struct {
 type groupRenamedMsg struct {
 	id      string
 	newName string
+}
+
+type groupDeletedMsg struct {
+	id string
 }
 
 // Init initializes the model and loads data.
@@ -257,6 +281,15 @@ func (m Model) renameGroup(id, name string) tea.Cmd {
 	}
 }
 
+func (m Model) deleteGroup(id string) tea.Cmd {
+	return func() tea.Msg {
+		if err := m.client.DeleteGroup(id); err != nil {
+			return errMsg{err: err}
+		}
+		return groupDeletedMsg{id: id}
+	}
+}
+
 // Update handles messages and updates the model.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Handle rename mode separately
@@ -267,6 +300,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Handle group info mode
 	if m.mode == ModeGroupInfo {
 		return m.updateGroupInfoMode(msg)
+	}
+
+	// Handle delete confirmation mode
+	if m.mode == ModeDeleteConfirm {
+		return m.updateDeleteConfirmMode(msg)
 	}
 
 	switch msg := msg.(type) {
@@ -341,6 +379,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.infoGroupID = group.ID
 				return m, nil
 			}
+
+		case key.Matches(msg, keys.Delete):
+			// Enter delete confirmation mode (only available on groups tab)
+			if m.activeTab == TabGroups && len(m.groups) > 0 {
+				group := m.groups[m.groupCursor]
+				m.mode = ModeDeleteConfirm
+				m.deleteGroupID = group.ID
+				m.deleteGroupName = group.Name
+				return m, nil
+			}
 		}
 
 	case lightsLoadedMsg:
@@ -392,6 +440,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.err = nil
 
+	case groupDeletedMsg:
+		// Remove group from list
+		for i := range m.groups {
+			if m.groups[i].ID == msg.id {
+				m.groups = append(m.groups[:i], m.groups[i+1:]...)
+				break
+			}
+		}
+		// Adjust cursor if needed
+		if m.groupCursor >= len(m.groups) && m.groupCursor > 0 {
+			m.groupCursor--
+		}
+		m.err = nil
+
 	case errMsg:
 		m.err = msg.err
 	}
@@ -407,6 +469,30 @@ func (m Model) updateGroupInfoMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.Cancel), key.Matches(msg, keys.Quit):
 			m.mode = ModeNormal
 			m.infoGroupID = ""
+			return m, nil
+		}
+	}
+	return m, nil
+}
+
+// updateDeleteConfirmMode handles input in delete confirmation mode.
+func (m Model) updateDeleteConfirmMode(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, keys.Yes):
+			// Confirm delete
+			id := m.deleteGroupID
+			m.mode = ModeNormal
+			m.deleteGroupID = ""
+			m.deleteGroupName = ""
+			return m, m.deleteGroup(id)
+
+		case key.Matches(msg, keys.No), key.Matches(msg, keys.Cancel):
+			// Cancel delete
+			m.mode = ModeNormal
+			m.deleteGroupID = ""
+			m.deleteGroupName = ""
 			return m, nil
 		}
 	}
@@ -470,11 +556,18 @@ func (m Model) View() string {
 		s += m.renderGroups()
 	}
 
+	// Render delete confirmation if active
+	if m.mode == ModeDeleteConfirm {
+		s += "\n" + inputStyle.Render(fmt.Sprintf("Delete %q? (y/n)", m.deleteGroupName))
+	}
+
 	// Render help based on mode
 	if m.mode == ModeRename {
 		s += "\n" + helpStyle.Render("enter confirm • esc cancel")
+	} else if m.mode == ModeDeleteConfirm {
+		s += "\n" + helpStyle.Render("y delete • n/esc cancel")
 	} else if m.activeTab == TabGroups {
-		s += "\n" + helpStyle.Render("↑/↓ navigate • enter toggle • r rename • i info • tab switch • q quit")
+		s += "\n" + helpStyle.Render("↑/↓ navigate • enter toggle • r rename • d delete • i info • tab switch • q quit")
 	} else {
 		s += "\n" + helpStyle.Render("↑/↓ navigate • enter toggle • r rename • tab switch • q quit")
 	}

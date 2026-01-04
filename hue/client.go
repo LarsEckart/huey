@@ -413,3 +413,26 @@ func (c *Client) RenameGroup(id string, name string) error {
 
 	return c.checkError(data)
 }
+
+// DeleteGroup removes a group from the bridge.
+func (c *Client) DeleteGroup(id string) error {
+	url := fmt.Sprintf("%s/%s/groups/%s", c.baseURL(), c.username, id)
+
+	req, err := http.NewRequest(http.MethodDelete, url, nil)
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("delete request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read response: %w", err)
+	}
+
+	return c.checkError(data)
+}
