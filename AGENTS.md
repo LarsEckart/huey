@@ -4,10 +4,22 @@ A Go CLI app to control Philips Hue lights. Dual-mode: flag-based for scripting/
 
 Small steps, frequent commits.
 
-## Documentation
+## Architecture
 
-- Official Hue API: https://developers.meethue.com/develop/get-started-2/
-- Local API reference: [doc.md](doc.md)
+```
+┌─────────────────────────────────────────────────────────────┐
+│   CLI (cmd/*.go)              TUI (tui/tui.go)              │
+│   - fmt.Printf output         - Bubble Tea UI               │
+│   - Single operation          - Interactive session         │
+│        │                            │                       │
+│        └──────────┬─────────────────┘                       │
+│                   ▼                                         │
+│            hue/client.go                                    │
+│            (HTTP calls to bridge)                           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**All features must be implemented for both CLI and TUI.**
 
 ## Tech Stack
 
@@ -15,36 +27,39 @@ Small steps, frequent commits.
 - **Bubble Tea** — TUI framework
 - **Lip Gloss** — TUI styling
 
-## Config
+## Hue Bridge API
 
-Stored in `~/.config/huey/config.json`:
-- `bridge_ip` — Hue bridge IP address
-- `username` — API username (obtained via bridge link button)
+Base URL: `http://<bridge_ip>/api`
 
-## First Run Flow
+### Authentication
+- `POST /api` — Register username (requires bridge button press)
+  - Body: `{"devicetype": "app#device"}`
+  - Returns: `{"success": {"username": "..."}}`
 
-1. No config? → Prompt for bridge IP
-2. No username? → "Press bridge button, then Enter" → POST to `/api`
-3. Store both in config
+### Lights
+- `GET /api/{username}/lights` — List all lights (returns map of ID → light)
+- `GET /api/{username}/lights/{id}` — Get single light
+- `PUT /api/{username}/lights/{id}/state` — Set light state
+  - Body: `{"on": bool, "bri": 0-254, "hue": 0-65535, "sat": 0-254}`
+- `PUT /api/{username}/lights/{id}` — Update light attributes
+  - Body: `{"name": "..."}`
 
-## Commands
+### Groups
+Groups have types: `Room` (light can be in one), `Zone` (light can be in many), `Entertainment`, `LightGroup`
 
-### Flag Mode (for agents/scripts)
-```
-huey lights              # List all lights
-huey light <id> --on     # Turn light on
-huey light <id> --off    # Turn light off
-huey light <id> --toggle # Toggle light
-```
+- `GET /api/{username}/groups` — List all groups
+- `POST /api/{username}/groups` — Create group
+  - Body: `{"name": "...", "type": "Room"|"Zone", "lights": ["1","2"]}`
+- `PUT /api/{username}/groups/{id}` — Update group attributes
+  - Body: `{"name": "..."}`
+- `PUT /api/{username}/groups/{id}/action` — Set state for all lights in group
+  - Body: `{"on": bool}` or `{"scene": "sceneId"}`
+- `DELETE /api/{username}/groups/{id}` — Delete group
 
-### Interactive Mode (for humans)
-```
-huey                     # Opens TUI with light list, Enter to toggle
-```
+### Scenes
+Scenes are saved light configurations for a group.
 
-## API Endpoints Used
-
-- `POST /api` — Register new username (requires bridge button press)
-- `GET /api/{username}/lights` — List all lights
-- `GET /api/{username}/lights/{id}` — Get light info
-- `PUT /api/{username}/lights/{id}/state` — Change light state (`{"on": true/false}`)
+- `GET /api/{username}/scenes` — List all scenes
+- `GET /api/{username}/scenes/{id}` — Get scene details
+- `PUT /api/{username}/groups/{groupId}/action` — Activate scene
+  - Body: `{"scene": "sceneId"}`
