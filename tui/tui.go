@@ -639,25 +639,24 @@ func (m Model) updateCreateGroupNameMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) updateCreateGroupLightsMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch {
-		case key.Matches(msg, keys.Up):
+		switch msg.String() {
+		case "up", "k":
 			if m.createLightCursor > 0 {
 				m.createLightCursor--
 			}
 
-		case key.Matches(msg, keys.Down):
+		case "down", "j":
 			if m.createLightCursor < len(m.lights)-1 {
 				m.createLightCursor++
 			}
 
-		case key.Matches(msg, keys.Toggle):
-			// Toggle light selection
+		case " ": // Space only for toggle
 			if len(m.lights) > 0 {
 				light := m.lights[m.createLightCursor]
 				m.createLightSelected[light.ID] = !m.createLightSelected[light.ID]
 			}
 
-		case key.Matches(msg, keys.Confirm):
+		case "enter": // Enter only for confirm
 			// Collect selected light IDs
 			var lightIDs []string
 			for _, light := range m.lights {
@@ -668,7 +667,7 @@ func (m Model) updateCreateGroupLightsMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.mode = ModeNormal
 			return m, m.createGroup(m.createGroupName, m.createGroupType, lightIDs)
 
-		case key.Matches(msg, keys.Cancel):
+		case "esc":
 			m.mode = ModeNormal
 			return m, nil
 		}
