@@ -7,4 +7,17 @@
 - [x] Flag mode commands
 - [x] Interactive TUI (light list, toggle)
 
-Future: color/brightness control, groups, scenes, bridge discovery
+## v2 Scope
+
+- [ ] Groups (list, toggle)
+- [ ] Light renaming
+- [ ] Scenes (list, activate)
+
+## Backlog
+
+- Brightness/color control
+- Bridge discovery (mDNS)
+- Room-aware views
+- Favorites/presets (user-defined states)
+- Scheduling
+- Multi-bridge support
