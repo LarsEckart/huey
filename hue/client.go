@@ -277,12 +277,12 @@ func (c *Client) checkError(data []byte) error {
 
 // Group represents a Hue group (room, zone, etc.).
 type Group struct {
-	ID      string
-	Name    string
-	Type    string   // "Room", "Zone", "LightGroup", etc.
-	Lights  []string // Light IDs in this group
-	AllOn   bool     // All lights in group are on
-	AnyOn   bool     // At least one light is on
+	ID     string
+	Name   string
+	Type   string   // "Room", "Zone", "LightGroup", etc.
+	Lights []string // Light IDs in this group
+	AllOn  bool     // All lights in group are on
+	AnyOn  bool     // At least one light is on
 }
 
 // groupResponse matches the JSON structure from the bridge for a single group.

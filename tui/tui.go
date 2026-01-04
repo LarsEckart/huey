@@ -3,11 +3,11 @@ package tui
 import (
 	"fmt"
 
+	"github.com/LarsEckart/huey/hue"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/LarsEckart/huey/hue"
 )
 
 // Tab represents which tab is active.
@@ -168,19 +168,19 @@ var keys = keyMap{
 
 // Model is the Bubble Tea model for the TUI.
 type Model struct {
-	client        *hue.Client
-	lights        []hue.Light
-	groups        []hue.Group
-	scenes        []hue.Scene
-	lightsLoaded  bool
-	groupsLoaded  bool
-	scenesLoaded  bool
-	activeTab     Tab
-	lightCursor   int
-	groupCursor   int
-	sceneCursor   int
-	err           error
-	quitting      bool
+	client       *hue.Client
+	lights       []hue.Light
+	groups       []hue.Group
+	scenes       []hue.Scene
+	lightsLoaded bool
+	groupsLoaded bool
+	scenesLoaded bool
+	activeTab    Tab
+	lightCursor  int
+	groupCursor  int
+	sceneCursor  int
+	err          error
+	quitting     bool
 
 	// Rename mode
 	mode      Mode
@@ -195,10 +195,10 @@ type Model struct {
 	deleteGroupName string // Name of group to delete (for display)
 
 	// Create group mode
-	createGroupType     string   // "Room" or "Zone"
-	createGroupName     string   // Name entered by user
-	createGroupLights   []string // Selected light IDs
-	createLightCursor   int      // Cursor for light picker
+	createGroupType     string          // "Room" or "Zone"
+	createGroupName     string          // Name entered by user
+	createGroupLights   []string        // Selected light IDs
+	createLightCursor   int             // Cursor for light picker
 	createLightSelected map[string]bool // Which lights are selected
 
 	// Create scene mode
