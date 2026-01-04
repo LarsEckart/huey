@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"sort"
+	"strconv"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -105,9 +106,11 @@ func (m Model) loadLights() tea.Msg {
 		return errMsg{err: err}
 	}
 
-	// Sort by ID for consistent display
+	// Sort by ID numerically for natural order
 	sort.Slice(lights, func(i, j int) bool {
-		return lights[i].ID < lights[j].ID
+		iID, _ := strconv.Atoi(lights[i].ID)
+		jID, _ := strconv.Atoi(lights[j].ID)
+		return iID < jID
 	})
 
 	return lightsLoadedMsg{lights: lights}

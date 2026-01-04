@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 
 	"github.com/LarsEckart/huey/auth"
 	"github.com/LarsEckart/huey/hue"
@@ -28,9 +29,11 @@ var LightsCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// Sort by ID for consistent output
+		// Sort by ID numerically for natural order
 		sort.Slice(lights, func(i, j int) bool {
-			return lights[i].ID < lights[j].ID
+			iID, _ := strconv.Atoi(lights[i].ID)
+			jID, _ := strconv.Atoi(lights[j].ID)
+			return iID < jID
 		})
 
 		for _, light := range lights {
