@@ -23,3 +23,4 @@
 - Favorites/presets (user-defined states)
 - Scheduling
 - Multi-bridge support
+- TUI: show active scene indicator (compare current light states against scene lightstates)
