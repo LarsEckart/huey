@@ -15,6 +15,8 @@
 
 ## Backlog
 
+- `--version` flag using `runtime/debug.BuildInfo` (auto-populated by `go install @tag`)
+- `--json` output for scripting/agent use
 - Brightness/color control
 - Bridge discovery (mDNS)
 - Room-aware views

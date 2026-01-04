@@ -359,6 +359,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.err = nil
+		// Refresh groups to update AnyOn/AllOn state
+		return m, m.loadGroups
 
 	case groupToggledMsg:
 		for i := range m.groups {
@@ -369,6 +371,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.err = nil
+		// Refresh lights to update individual light states
+		return m, m.loadLights
 
 	case lightRenamedMsg:
 		for i := range m.lights {
