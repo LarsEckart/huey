@@ -487,3 +487,209 @@ func (c *Client) CreateGroup(name, groupType string, lightIDs []string) (string,
 
 	return "", fmt.Errorf("unexpected response format: %s", string(data))
 }
+
+// Scene represents a Hue scene (saved light configuration for a group).
+type Scene struct {
+	ID     string
+	Name   string
+	Group  string   // Group ID this scene belongs to
+	Type   string   // "LightScene", "GroupScene", etc.
+	Lights []string // Light IDs in this scene
+}
+
+// sceneResponse matches the JSON structure from the bridge for a single scene.
+type sceneResponse struct {
+	Name   string   `json:"name"`
+	Group  string   `json:"group"`
+	Type   string   `json:"type"`
+	Lights []string `json:"lights"`
+}
+
+// GetScenes returns all scenes from the bridge.
+func (c *Client) GetScenes() ([]Scene, error) {
+	url := fmt.Sprintf("%s/%s/scenes", c.baseURL(), c.username)
+	resp, err := c.httpClient.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("get request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+
+	if err := c.checkError(data); err != nil {
+		return nil, err
+	}
+
+	// Bridge returns map of ID -> scene object
+	var scenesMap map[string]sceneResponse
+	if err := json.Unmarshal(data, &scenesMap); err != nil {
+		return nil, fmt.Errorf("unmarshal response: %w", err)
+	}
+
+	scenes := make([]Scene, 0, len(scenesMap))
+	for id, sr := range scenesMap {
+		scenes = append(scenes, Scene{
+			ID:     id,
+			Name:   sr.Name,
+			Group:  sr.Group,
+			Type:   sr.Type,
+			Lights: sr.Lights,
+		})
+	}
+
+	// Sort by name for consistent ordering
+	sort.Slice(scenes, func(i, j int) bool {
+		return scenes[i].Name < scenes[j].Name
+	})
+
+	return scenes, nil
+}
+
+// GetScene returns a single scene by ID.
+func (c *Client) GetScene(id string) (*Scene, error) {
+	url := fmt.Sprintf("%s/%s/scenes/%s", c.baseURL(), c.username, id)
+	resp, err := c.httpClient.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("get request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response: %w", err)
+	}
+
+	if err := c.checkError(data); err != nil {
+		return nil, err
+	}
+
+	var sr sceneResponse
+	if err := json.Unmarshal(data, &sr); err != nil {
+		return nil, fmt.Errorf("unmarshal response: %w", err)
+	}
+
+	return &Scene{
+		ID:     id,
+		Name:   sr.Name,
+		Group:  sr.Group,
+		Type:   sr.Type,
+		Lights: sr.Lights,
+	}, nil
+}
+
+// ActivateScene activates a scene on its group.
+func (c *Client) ActivateScene(sceneID string) error {
+	// First, get the scene to find its group
+	scene, err := c.GetScene(sceneID)
+	if err != nil {
+		return fmt.Errorf("get scene: %w", err)
+	}
+
+	if scene.Group == "" {
+		return fmt.Errorf("scene %s has no associated group", sceneID)
+	}
+
+	url := fmt.Sprintf("%s/%s/groups/%s/action", c.baseURL(), c.username, scene.Group)
+
+	body := map[string]string{"scene": sceneID}
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("marshal request: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPut, url, bytes.NewReader(jsonBody))
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("put request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read response: %w", err)
+	}
+
+	return c.checkError(data)
+}
+
+// CreateScene creates a new scene that captures the current state of lights in a group.
+func (c *Client) CreateScene(name, groupID string) (string, error) {
+	url := fmt.Sprintf("%s/%s/scenes", c.baseURL(), c.username)
+
+	body := map[string]any{
+		"name":    name,
+		"type":    "GroupScene",
+		"group":   groupID,
+		"recycle": false,
+	}
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return "", fmt.Errorf("marshal request: %w", err)
+	}
+
+	resp, err := c.httpClient.Post(url, "application/json", bytes.NewReader(jsonBody))
+	if err != nil {
+		return "", fmt.Errorf("post request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read response: %w", err)
+	}
+
+	// Parse response
+	var results []map[string]any
+	if err := json.Unmarshal(data, &results); err != nil {
+		return "", fmt.Errorf("unmarshal response: %w", err)
+	}
+
+	if len(results) == 0 {
+		return "", fmt.Errorf("empty response from bridge")
+	}
+
+	if errData, ok := results[0]["error"].(map[string]any); ok {
+		desc := errData["description"]
+		return "", fmt.Errorf("bridge error: %v", desc)
+	}
+
+	// Extract ID from success response
+	if success, ok := results[0]["success"].(map[string]any); ok {
+		if id, ok := success["id"].(string); ok {
+			return id, nil
+		}
+	}
+
+	return "", fmt.Errorf("unexpected response format: %s", string(data))
+}
+
+// DeleteScene removes a scene from the bridge.
+func (c *Client) DeleteScene(id string) error {
+	url := fmt.Sprintf("%s/%s/scenes/%s", c.baseURL(), c.username, id)
+
+	req, err := http.NewRequest(http.MethodDelete, url, nil)
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("delete request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read response: %w", err)
+	}
+
+	return c.checkError(data)
+}

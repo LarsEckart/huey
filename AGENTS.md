@@ -61,5 +61,9 @@ Scenes are saved light configurations for a group.
 
 - `GET /api/{username}/scenes` — List all scenes
 - `GET /api/{username}/scenes/{id}` — Get scene details
+- `POST /api/{username}/scenes` — Create scene (captures current light states)
+  - Body: `{"name": "...", "type": "GroupScene", "group": "groupId", "recycle": false}`
+  - Returns: `{"success": {"id": "..."}}`
 - `PUT /api/{username}/groups/{groupId}/action` — Activate scene
   - Body: `{"scene": "sceneId"}`
+- `DELETE /api/{username}/scenes/{id}` — Delete scene

@@ -16,6 +16,7 @@ type Tab int
 const (
 	TabLights Tab = iota
 	TabGroups
+	TabScenes
 )
 
 // Mode represents the current interaction mode.
@@ -29,6 +30,9 @@ const (
 	ModeCreateGroupType
 	ModeCreateGroupName
 	ModeCreateGroupLights
+	ModeCreateSceneGroup
+	ModeCreateSceneName
+	ModeDeleteSceneConfirm
 )
 
 // Styles
@@ -84,6 +88,7 @@ type keyMap struct {
 	Delete  key.Binding
 	Add     key.Binding
 	Info    key.Binding
+	Refresh key.Binding
 	TabNext key.Binding
 	TabPrev key.Binding
 	Quit    key.Binding
@@ -123,6 +128,10 @@ var keys = keyMap{
 	Info: key.NewBinding(
 		key.WithKeys("i"),
 		key.WithHelp("i", "info"),
+	),
+	Refresh: key.NewBinding(
+		key.WithKeys("R"),
+		key.WithHelp("R", "refresh"),
 	),
 	TabNext: key.NewBinding(
 		key.WithKeys("tab", "l"),
@@ -164,14 +173,19 @@ var keys = keyMap{
 
 // Model is the Bubble Tea model for the TUI.
 type Model struct {
-	client      *hue.Client
-	lights      []hue.Light
-	groups      []hue.Group
-	activeTab   Tab
-	lightCursor int
-	groupCursor int
-	err         error
-	quitting    bool
+	client        *hue.Client
+	lights        []hue.Light
+	groups        []hue.Group
+	scenes        []hue.Scene
+	lightsLoaded  bool
+	groupsLoaded  bool
+	scenesLoaded  bool
+	activeTab     Tab
+	lightCursor   int
+	groupCursor   int
+	sceneCursor   int
+	err           error
+	quitting      bool
 
 	// Rename mode
 	mode      Mode
@@ -191,6 +205,15 @@ type Model struct {
 	createGroupLights   []string // Selected light IDs
 	createLightCursor   int      // Cursor for light picker
 	createLightSelected map[string]bool // Which lights are selected
+
+	// Create scene mode
+	createSceneGroupID string // Selected group ID
+	createSceneName    string // Name entered by user
+	createGroupCursor  int    // Cursor for group picker
+
+	// Delete scene mode
+	deleteSceneID   string // ID of scene to delete
+	deleteSceneName string // Name of scene to delete (for display)
 }
 
 // New creates a new TUI model.
@@ -248,9 +271,26 @@ type groupCreatedMsg struct {
 	group hue.Group
 }
 
+type scenesLoadedMsg struct {
+	scenes []hue.Scene
+}
+
+type sceneActivatedMsg struct {
+	id   string
+	name string
+}
+
+type sceneCreatedMsg struct {
+	scene hue.Scene
+}
+
+type sceneDeletedMsg struct {
+	id string
+}
+
 // Init initializes the model and loads data.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.loadLights, m.loadGroups)
+	return tea.Batch(m.loadLights, m.loadGroups, m.loadScenes)
 }
 
 func (m Model) loadLights() tea.Msg {
@@ -267,6 +307,49 @@ func (m Model) loadGroups() tea.Msg {
 		return errMsg{err: err}
 	}
 	return groupsLoadedMsg{groups: groups}
+}
+
+func (m Model) loadScenes() tea.Msg {
+	scenes, err := m.client.GetScenes()
+	if err != nil {
+		return errMsg{err: err}
+	}
+	return scenesLoadedMsg{scenes: scenes}
+}
+
+func (m Model) activateScene(id, name string) tea.Cmd {
+	return func() tea.Msg {
+		if err := m.client.ActivateScene(id); err != nil {
+			return errMsg{err: err}
+		}
+		return sceneActivatedMsg{id: id, name: name}
+	}
+}
+
+func (m Model) createScene(name, groupID string) tea.Cmd {
+	return func() tea.Msg {
+		id, err := m.client.CreateScene(name, groupID)
+		if err != nil {
+			return errMsg{err: err}
+		}
+		return sceneCreatedMsg{
+			scene: hue.Scene{
+				ID:    id,
+				Name:  name,
+				Group: groupID,
+				Type:  "GroupScene",
+			},
+		}
+	}
+}
+
+func (m Model) deleteScene(id string) tea.Cmd {
+	return func() tea.Msg {
+		if err := m.client.DeleteScene(id); err != nil {
+			return errMsg{err: err}
+		}
+		return sceneDeletedMsg{id: id}
+	}
 }
 
 func (m Model) toggleLight(id string, currentOn bool) tea.Cmd {
@@ -366,6 +449,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateCreateGroupLightsMode(msg)
 	}
 
+	// Handle create scene modes
+	if m.mode == ModeCreateSceneGroup {
+		return m.updateCreateSceneGroupMode(msg)
+	}
+	if m.mode == ModeCreateSceneName {
+		return m.updateCreateSceneNameMode(msg)
+	}
+
+	// Handle delete scene confirmation
+	if m.mode == ModeDeleteSceneConfirm {
+		return m.updateDeleteSceneConfirmMode(msg)
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
@@ -374,40 +470,81 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case key.Matches(msg, keys.TabNext):
-			if m.activeTab == TabLights {
+			switch m.activeTab {
+			case TabLights:
 				m.activeTab = TabGroups
-			} else {
+			case TabGroups:
+				m.activeTab = TabScenes
+			case TabScenes:
 				m.activeTab = TabLights
 			}
 
 		case key.Matches(msg, keys.TabPrev):
-			if m.activeTab == TabGroups {
+			switch m.activeTab {
+			case TabLights:
+				m.activeTab = TabScenes
+			case TabGroups:
 				m.activeTab = TabLights
-			} else {
+			case TabScenes:
 				m.activeTab = TabGroups
 			}
 
 		case key.Matches(msg, keys.Up):
-			if m.activeTab == TabLights && m.lightCursor > 0 {
-				m.lightCursor--
-			} else if m.activeTab == TabGroups && m.groupCursor > 0 {
-				m.groupCursor--
+			switch m.activeTab {
+			case TabLights:
+				if m.lightCursor > 0 {
+					m.lightCursor--
+				}
+			case TabGroups:
+				if m.groupCursor > 0 {
+					m.groupCursor--
+				}
+			case TabScenes:
+				if m.sceneCursor > 0 {
+					m.sceneCursor--
+				}
 			}
 
 		case key.Matches(msg, keys.Down):
-			if m.activeTab == TabLights && m.lightCursor < len(m.lights)-1 {
-				m.lightCursor++
-			} else if m.activeTab == TabGroups && m.groupCursor < len(m.groups)-1 {
-				m.groupCursor++
+			switch m.activeTab {
+			case TabLights:
+				if m.lightCursor < len(m.lights)-1 {
+					m.lightCursor++
+				}
+			case TabGroups:
+				if m.groupCursor < len(m.groups)-1 {
+					m.groupCursor++
+				}
+			case TabScenes:
+				if m.sceneCursor < len(m.scenes)-1 {
+					m.sceneCursor++
+				}
 			}
 
 		case key.Matches(msg, keys.Toggle):
-			if m.activeTab == TabLights && len(m.lights) > 0 {
-				light := m.lights[m.lightCursor]
-				return m, m.toggleLight(light.ID, light.On)
-			} else if m.activeTab == TabGroups && len(m.groups) > 0 {
-				group := m.groups[m.groupCursor]
-				return m, m.toggleGroup(group.ID, group.AnyOn)
+			switch m.activeTab {
+			case TabLights:
+				if len(m.lights) > 0 {
+					light := m.lights[m.lightCursor]
+					return m, m.toggleLight(light.ID, light.On)
+				}
+			case TabGroups:
+				if len(m.groups) > 0 {
+					group := m.groups[m.groupCursor]
+					return m, m.toggleGroup(group.ID, group.AnyOn)
+				}
+			case TabScenes:
+				if len(m.scenes) > 0 {
+					scene := m.scenes[m.sceneCursor]
+					return m, m.activateScene(scene.ID, scene.Name)
+				}
+			}
+
+		case key.Matches(msg, keys.Confirm):
+			// Enter also activates scenes
+			if m.activeTab == TabScenes && len(m.scenes) > 0 {
+				scene := m.scenes[m.sceneCursor]
+				return m, m.activateScene(scene.ID, scene.Name)
 			}
 
 		case key.Matches(msg, keys.Rename):
@@ -440,12 +577,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case key.Matches(msg, keys.Delete):
-			// Enter delete confirmation mode (only available on groups tab)
+			// Enter delete confirmation mode (groups or scenes tab)
 			if m.activeTab == TabGroups && len(m.groups) > 0 {
 				group := m.groups[m.groupCursor]
 				m.mode = ModeDeleteConfirm
 				m.deleteGroupID = group.ID
 				m.deleteGroupName = group.Name
+				return m, nil
+			}
+			if m.activeTab == TabScenes && len(m.scenes) > 0 {
+				scene := m.scenes[m.sceneCursor]
+				m.mode = ModeDeleteSceneConfirm
+				m.deleteSceneID = scene.ID
+				m.deleteSceneName = scene.Name
 				return m, nil
 			}
 
@@ -460,14 +604,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.createLightSelected = make(map[string]bool)
 				return m, nil
 			}
+			// Enter create scene mode (only available on scenes tab)
+			if m.activeTab == TabScenes {
+				m.mode = ModeCreateSceneGroup
+				m.createSceneGroupID = ""
+				m.createSceneName = ""
+				m.createGroupCursor = 0
+				return m, nil
+			}
+		case key.Matches(msg, keys.Refresh):
+			// Reload all data from bridge
+			m.lightsLoaded = false
+			m.groupsLoaded = false
+			m.scenesLoaded = false
+			return m, tea.Batch(m.loadLights, m.loadGroups, m.loadScenes)
 		}
 
 	case lightsLoadedMsg:
 		m.lights = msg.lights
+		m.lightsLoaded = true
 		m.err = nil
 
 	case groupsLoadedMsg:
 		m.groups = msg.groups
+		m.groupsLoaded = true
 		m.err = nil
 
 	case lightToggledMsg:
@@ -533,6 +693,38 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Refresh to get accurate state
 		return m, m.loadGroups
 
+	case scenesLoadedMsg:
+		m.scenes = msg.scenes
+		m.scenesLoaded = true
+		m.err = nil
+
+	case sceneActivatedMsg:
+		m.err = nil
+		// Refresh lights to show the new state
+		return m, m.loadLights
+
+	case sceneCreatedMsg:
+		// Add scene to list and select it
+		m.scenes = append(m.scenes, msg.scene)
+		m.sceneCursor = len(m.scenes) - 1
+		m.err = nil
+		// Refresh to get accurate scene list
+		return m, m.loadScenes
+
+	case sceneDeletedMsg:
+		// Remove scene from list
+		for i := range m.scenes {
+			if m.scenes[i].ID == msg.id {
+				m.scenes = append(m.scenes[:i], m.scenes[i+1:]...)
+				break
+			}
+		}
+		// Adjust cursor if needed
+		if m.sceneCursor >= len(m.scenes) && m.sceneCursor > 0 {
+			m.sceneCursor--
+		}
+		m.err = nil
+
 	case errMsg:
 		m.err = msg.err
 	}
@@ -572,6 +764,30 @@ func (m Model) updateDeleteConfirmMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.mode = ModeNormal
 			m.deleteGroupID = ""
 			m.deleteGroupName = ""
+			return m, nil
+		}
+	}
+	return m, nil
+}
+
+// updateDeleteSceneConfirmMode handles input in delete scene confirmation mode.
+func (m Model) updateDeleteSceneConfirmMode(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, keys.Yes), key.Matches(msg, keys.Confirm):
+			// Confirm delete
+			id := m.deleteSceneID
+			m.mode = ModeNormal
+			m.deleteSceneID = ""
+			m.deleteSceneName = ""
+			return m, m.deleteScene(id)
+
+		case key.Matches(msg, keys.No), key.Matches(msg, keys.Cancel):
+			// Cancel delete
+			m.mode = ModeNormal
+			m.deleteSceneID = ""
+			m.deleteSceneName = ""
 			return m, nil
 		}
 	}
@@ -676,6 +892,67 @@ func (m Model) updateCreateGroupLightsMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// updateCreateSceneGroupMode handles group selection for scene creation.
+func (m Model) updateCreateSceneGroupMode(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, keys.Up):
+			if m.createGroupCursor > 0 {
+				m.createGroupCursor--
+			}
+
+		case key.Matches(msg, keys.Down):
+			if m.createGroupCursor < len(m.groups)-1 {
+				m.createGroupCursor++
+			}
+
+		case key.Matches(msg, keys.Confirm):
+			if len(m.groups) > 0 {
+				group := m.groups[m.createGroupCursor]
+				m.createSceneGroupID = group.ID
+				m.mode = ModeCreateSceneName
+				m.textInput.SetValue("")
+				m.textInput.Focus()
+				return m, textinput.Blink
+			}
+
+		case key.Matches(msg, keys.Cancel):
+			m.mode = ModeNormal
+			return m, nil
+		}
+	}
+	return m, nil
+}
+
+// updateCreateSceneNameMode handles name entry for scene creation.
+func (m Model) updateCreateSceneNameMode(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, keys.Confirm):
+			name := m.textInput.Value()
+			if name == "" {
+				return m, nil // Don't proceed with empty name
+			}
+			m.createSceneName = name
+			m.textInput.Blur()
+			m.mode = ModeNormal
+			return m, m.createScene(m.createSceneName, m.createSceneGroupID)
+
+		case key.Matches(msg, keys.Cancel):
+			m.textInput.Blur()
+			m.mode = ModeNormal
+			return m, nil
+		}
+	}
+
+	// Forward other messages to text input
+	var cmd tea.Cmd
+	m.textInput, cmd = m.textInput.Update(msg)
+	return m, cmd
+}
+
 // updateRenameMode handles input in rename mode.
 func (m Model) updateRenameMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -728,6 +1005,14 @@ func (m Model) View() string {
 		return m.renderCreateGroupLights()
 	}
 
+	// Create scene modes have their own views
+	if m.mode == ModeCreateSceneGroup {
+		return m.renderCreateSceneGroup()
+	}
+	if m.mode == ModeCreateSceneName {
+		return m.renderCreateSceneName()
+	}
+
 	s := titleStyle.Render("huey - Hue Light Control") + "\n\n"
 
 	// Render tabs
@@ -738,48 +1023,69 @@ func (m Model) View() string {
 	}
 
 	// Render active tab content
-	if m.activeTab == TabLights {
+	switch m.activeTab {
+	case TabLights:
 		s += m.renderLights()
-	} else {
+	case TabGroups:
 		s += m.renderGroups()
+	case TabScenes:
+		s += m.renderScenes()
 	}
 
 	// Render delete confirmation if active
 	if m.mode == ModeDeleteConfirm {
 		s += "\n" + inputStyle.Render(fmt.Sprintf("Delete %q? (y/n)", m.deleteGroupName))
 	}
+	if m.mode == ModeDeleteSceneConfirm {
+		s += "\n" + inputStyle.Render(fmt.Sprintf("Delete %q? (y/n)", m.deleteSceneName))
+	}
 
-	// Render help based on mode
+	// Render help based on mode and tab
 	if m.mode == ModeRename {
 		s += "\n" + helpStyle.Render("enter confirm • esc cancel")
-	} else if m.mode == ModeDeleteConfirm {
+	} else if m.mode == ModeDeleteConfirm || m.mode == ModeDeleteSceneConfirm {
 		s += "\n" + helpStyle.Render("y/enter delete • n/esc cancel")
-	} else if m.activeTab == TabGroups {
-		s += "\n" + helpStyle.Render("↑/↓ navigate • space toggle • a add • r rename • d delete • i info • tab switch • q quit")
 	} else {
-		s += "\n" + helpStyle.Render("↑/↓ navigate • space toggle • r rename • tab switch • q quit")
+		switch m.activeTab {
+		case TabLights:
+			s += "\n" + helpStyle.Render("↑/↓ navigate • space toggle • r rename • R refresh • tab switch • q quit")
+		case TabGroups:
+			s += "\n" + helpStyle.Render("↑/↓ navigate • space toggle • a add • r rename • d delete • i info • R refresh • tab switch • q quit")
+		case TabScenes:
+			s += "\n" + helpStyle.Render("↑/↓ navigate • space activate • a add • d delete • R refresh • tab switch • q quit")
+		}
 	}
 
 	return s
 }
 
 func (m Model) renderTabs() string {
-	var lightsTab, groupsTab string
+	var lightsTab, groupsTab, scenesTab string
 
-	if m.activeTab == TabLights {
+	switch m.activeTab {
+	case TabLights:
 		lightsTab = tabActiveStyle.Render("Lights")
 		groupsTab = tabInactiveStyle.Render("Groups")
-	} else {
+		scenesTab = tabInactiveStyle.Render("Scenes")
+	case TabGroups:
 		lightsTab = tabInactiveStyle.Render("Lights")
 		groupsTab = tabActiveStyle.Render("Groups")
+		scenesTab = tabInactiveStyle.Render("Scenes")
+	case TabScenes:
+		lightsTab = tabInactiveStyle.Render("Lights")
+		groupsTab = tabInactiveStyle.Render("Groups")
+		scenesTab = tabActiveStyle.Render("Scenes")
 	}
 
-	return lightsTab + "  " + groupsTab
+	return lightsTab + "  " + groupsTab + "  " + scenesTab
 }
 
 func (m Model) renderLights() string {
-	if len(m.lights) == 0 {
+	if !m.lightsLoaded {
 		return "Loading lights...\n"
+	}
+	if len(m.lights) == 0 {
+		return "No lights found. Press R to refresh.\n"
 	}
 
 	var s string
@@ -815,8 +1121,11 @@ func (m Model) renderLights() string {
 }
 
 func (m Model) renderGroups() string {
-	if len(m.groups) == 0 {
+	if !m.groupsLoaded {
 		return "Loading groups...\n"
+	}
+	if len(m.groups) == 0 {
+		return "No groups found. Press R to refresh.\n"
 	}
 
 	var s string
@@ -849,6 +1158,41 @@ func (m Model) renderGroups() string {
 		}
 
 		line := fmt.Sprintf("%s%-3s %s %-8s %s", cursor, group.ID, name, groupType, status)
+		s += style.Render(line) + "\n"
+	}
+
+	return s
+}
+
+func (m Model) renderScenes() string {
+	if !m.scenesLoaded {
+		return "Loading scenes...\n"
+	}
+	if len(m.scenes) == 0 {
+		return "No scenes found. Press R to refresh.\n"
+	}
+
+	// Build group lookup for display
+	groupByID := make(map[string]hue.Group)
+	for _, g := range m.groups {
+		groupByID[g.ID] = g
+	}
+
+	var s string
+	for i, scene := range m.scenes {
+		cursor := "  "
+		style := normalStyle
+		if i == m.sceneCursor {
+			cursor = "> "
+			style = selectedStyle
+		}
+
+		groupName := "(no group)"
+		if g, ok := groupByID[scene.Group]; ok {
+			groupName = g.Name
+		}
+
+		line := fmt.Sprintf("%s%-24s %s", cursor, scene.Name, typeStyle.Render(fmt.Sprintf("[%s]", groupName)))
 		s += style.Render(line) + "\n"
 	}
 
@@ -939,6 +1283,43 @@ func (m Model) renderCreateGroupLights() string {
 	}
 
 	s += "\n" + helpStyle.Render("↑/↓ navigate • space toggle • enter create • esc cancel")
+	return s
+}
+
+func (m Model) renderCreateSceneGroup() string {
+	s := titleStyle.Render("Create Scene") + "\n\n"
+	s += "Select group to capture:\n\n"
+
+	for i, group := range m.groups {
+		cursor := "  "
+		style := normalStyle
+		if i == m.createGroupCursor {
+			cursor = "> "
+			style = selectedStyle
+		}
+
+		line := fmt.Sprintf("%s%-3s %s", cursor, group.ID, group.Name)
+		s += style.Render(line) + "\n"
+	}
+
+	s += "\n" + helpStyle.Render("↑/↓ navigate • enter select • esc cancel")
+	return s
+}
+
+func (m Model) renderCreateSceneName() string {
+	// Find the group name for display
+	groupName := m.createSceneGroupID
+	for _, g := range m.groups {
+		if g.ID == m.createSceneGroupID {
+			groupName = g.Name
+			break
+		}
+	}
+
+	s := titleStyle.Render(fmt.Sprintf("Create Scene for %s", groupName)) + "\n\n"
+	s += "Enter scene name:\n\n"
+	s += "  " + m.textInput.View() + "\n"
+	s += "\n" + helpStyle.Render("enter confirm • esc cancel")
 	return s
 }
 

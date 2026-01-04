@@ -30,16 +30,19 @@ huey
 ```
 
 **Navigation:**
-- **Tab** or **l/h** — Switch between Lights and Groups tabs
+- **Tab** or **l/h** — Switch between Lights, Groups, and Scenes tabs
 - **↑/↓** or **j/k** — Navigate list
-- **Space** — Toggle selected light/group
-- **r** — Rename selected item
+- **Space** — Toggle selected light/group, or activate scene
+- **r** — Rename selected item (Lights/Groups only)
 - **q** — Quit
 
 **Groups tab only:**
 - **a** — Add new group (room or zone)
 - **i** — Show group info (lights in group)
 - **d** — Delete group (with confirmation)
+
+**Scenes tab only:**
+- **a** — Add new scene (captures current light states)
 
 ### Command Line
 
@@ -100,6 +103,23 @@ Create a group:
 ```bash
 huey group-create --name "My Zone" --type zone --lights 1,2,3
 huey group-create --name "My Room" --type room
+```
+
+#### Scenes
+
+List all scenes:
+```bash
+huey scenes
+```
+
+Activate a scene:
+```bash
+huey scene TqkSoVMtx4juUbU
+```
+
+Create a scene (captures current light states):
+```bash
+huey scene-create --name "Focus" --group 85
 ```
 
 ## Finding Your Bridge IP

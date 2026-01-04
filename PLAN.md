@@ -11,7 +11,7 @@
 
 - [x] Groups (list, toggle)
 - [x] Light/Group renaming (CLI --name flag, TUI 'r' key)
-- [ ] Scenes (list, activate)
+- [x] Scenes (list, activate)
 
 ## Backlog
 
