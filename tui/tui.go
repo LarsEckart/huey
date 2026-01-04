@@ -480,7 +480,7 @@ func (m Model) updateDeleteConfirmMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, keys.Yes):
+		case key.Matches(msg, keys.Yes), key.Matches(msg, keys.Confirm):
 			// Confirm delete
 			id := m.deleteGroupID
 			m.mode = ModeNormal
@@ -565,7 +565,7 @@ func (m Model) View() string {
 	if m.mode == ModeRename {
 		s += "\n" + helpStyle.Render("enter confirm • esc cancel")
 	} else if m.mode == ModeDeleteConfirm {
-		s += "\n" + helpStyle.Render("y delete • n/esc cancel")
+		s += "\n" + helpStyle.Render("y/enter delete • n/esc cancel")
 	} else if m.activeTab == TabGroups {
 		s += "\n" + helpStyle.Render("↑/↓ navigate • enter toggle • r rename • d delete • i info • tab switch • q quit")
 	} else {
