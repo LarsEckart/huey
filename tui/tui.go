@@ -88,7 +88,6 @@ type keyMap struct {
 	Delete  key.Binding
 	Add     key.Binding
 	Info    key.Binding
-	Refresh key.Binding
 	TabNext key.Binding
 	TabPrev key.Binding
 	Quit    key.Binding
@@ -128,10 +127,6 @@ var keys = keyMap{
 	Info: key.NewBinding(
 		key.WithKeys("i"),
 		key.WithHelp("i", "info"),
-	),
-	Refresh: key.NewBinding(
-		key.WithKeys("R"),
-		key.WithHelp("R", "refresh"),
 	),
 	TabNext: key.NewBinding(
 		key.WithKeys("tab", "l"),
@@ -473,20 +468,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch m.activeTab {
 			case TabLights:
 				m.activeTab = TabGroups
+				return m, m.loadGroups
 			case TabGroups:
 				m.activeTab = TabScenes
+				return m, m.loadScenes
 			case TabScenes:
 				m.activeTab = TabLights
+				return m, m.loadLights
 			}
 
 		case key.Matches(msg, keys.TabPrev):
 			switch m.activeTab {
 			case TabLights:
 				m.activeTab = TabScenes
+				return m, m.loadScenes
 			case TabGroups:
 				m.activeTab = TabLights
+				return m, m.loadLights
 			case TabScenes:
 				m.activeTab = TabGroups
+				return m, m.loadGroups
 			}
 
 		case key.Matches(msg, keys.Up):
@@ -612,12 +613,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.createGroupCursor = 0
 				return m, nil
 			}
-		case key.Matches(msg, keys.Refresh):
-			// Reload all data from bridge
-			m.lightsLoaded = false
-			m.groupsLoaded = false
-			m.scenesLoaded = false
-			return m, tea.Batch(m.loadLights, m.loadGroups, m.loadScenes)
 		}
 
 	case lightsLoadedMsg:
@@ -1048,11 +1043,11 @@ func (m Model) View() string {
 	} else {
 		switch m.activeTab {
 		case TabLights:
-			s += "\n" + helpStyle.Render("↑/↓ navigate • space toggle • r rename • R refresh • tab switch • q quit")
+			s += "\n" + helpStyle.Render("↑/↓ navigate • space toggle • r rename • tab switch • q quit")
 		case TabGroups:
-			s += "\n" + helpStyle.Render("↑/↓ navigate • space toggle • a add • r rename • d delete • i info • R refresh • tab switch • q quit")
+			s += "\n" + helpStyle.Render("↑/↓ navigate • space toggle • a add • r rename • d delete • i info • tab switch • q quit")
 		case TabScenes:
-			s += "\n" + helpStyle.Render("↑/↓ navigate • space activate • a add • d delete • R refresh • tab switch • q quit")
+			s += "\n" + helpStyle.Render("↑/↓ navigate • space activate • a add • d delete • tab switch • q quit")
 		}
 	}
 
@@ -1085,7 +1080,7 @@ func (m Model) renderLights() string {
 		return "Loading lights...\n"
 	}
 	if len(m.lights) == 0 {
-		return "No lights found. Press R to refresh.\n"
+		return "No lights found.\n"
 	}
 
 	var s string
@@ -1125,7 +1120,7 @@ func (m Model) renderGroups() string {
 		return "Loading groups...\n"
 	}
 	if len(m.groups) == 0 {
-		return "No groups found. Press R to refresh.\n"
+		return "No groups found.\n"
 	}
 
 	var s string
@@ -1169,7 +1164,7 @@ func (m Model) renderScenes() string {
 		return "Loading scenes...\n"
 	}
 	if len(m.scenes) == 0 {
-		return "No scenes found. Press R to refresh.\n"
+		return "No scenes found.\n"
 	}
 
 	// Build group lookup for display
