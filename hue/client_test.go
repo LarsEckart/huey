@@ -115,6 +115,35 @@ func TestGetLights(t *testing.T) {
 	}
 }
 
+func TestGetLights_SortedNumerically(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// IDs that would sort wrong lexicographically: "1", "10", "2"
+		w.Write([]byte(`{
+			"10": {"name": "Ten", "type": "Light", "state": {"on": true}},
+			"2": {"name": "Two", "type": "Light", "state": {"on": true}},
+			"1": {"name": "One", "type": "Light", "state": {"on": true}},
+			"3": {"name": "Three", "type": "Light", "state": {"on": false}}
+		}`))
+	}))
+	defer server.Close()
+
+	addr := strings.TrimPrefix(server.URL, "http://")
+	client := NewClient(addr, "testuser")
+
+	lights, err := client.GetLights()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should be sorted numerically: 1, 2, 3, 10
+	want := []string{"1", "2", "3", "10"}
+	for i, light := range lights {
+		if light.ID != want[i] {
+			t.Errorf("position %d: got ID %s, want %s", i, light.ID, want[i])
+		}
+	}
+}
+
 func TestGetLight(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/testuser/lights/1" {

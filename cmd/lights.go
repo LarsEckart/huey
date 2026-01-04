@@ -3,8 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"sort"
-	"strconv"
 
 	"github.com/LarsEckart/huey/auth"
 	"github.com/LarsEckart/huey/hue"
@@ -28,13 +26,6 @@ var LightsCmd = &cobra.Command{
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
-
-		// Sort by ID numerically for natural order
-		sort.Slice(lights, func(i, j int) bool {
-			iID, _ := strconv.Atoi(lights[i].ID)
-			jID, _ := strconv.Atoi(lights[j].ID)
-			return iID < jID
-		})
 
 		for _, light := range lights {
 			status := "off"

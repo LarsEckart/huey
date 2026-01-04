@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
+	"strconv"
 	"time"
 )
 
@@ -140,6 +142,13 @@ func (c *Client) GetLights() ([]Light, error) {
 			Type:       lr.Type,
 		})
 	}
+
+	// Sort by ID numerically for natural order
+	sort.Slice(lights, func(i, j int) bool {
+		iID, _ := strconv.Atoi(lights[i].ID)
+		jID, _ := strconv.Atoi(lights[j].ID)
+		return iID < jID
+	})
 
 	return lights, nil
 }
