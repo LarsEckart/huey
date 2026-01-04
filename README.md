@@ -5,7 +5,7 @@ A simple CLI to control your Philips Hue lights.
 ## Installation
 
 ```bash
-go install github.com/lars/huey@latest
+go install github.com/LarsEckart/huey@latest
 ```
 
 Or download a binary from the [releases page](https://github.com/lars/huey/releases).

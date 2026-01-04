@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/lars/huey/auth"
-	"github.com/lars/huey/hue"
+	"github.com/LarsEckart/huey/auth"
+	"github.com/LarsEckart/huey/hue"
 	"github.com/spf13/cobra"
 )
 

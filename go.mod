@@ -1,4 +1,4 @@
-module github.com/lars/huey
+module github.com/LarsEckart/huey
 
 go 1.25.5
 

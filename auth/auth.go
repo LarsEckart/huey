@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/lars/huey/config"
-	"github.com/lars/huey/hue"
+	"github.com/LarsEckart/huey/config"
+	"github.com/LarsEckart/huey/hue"
 )
 
 // EnsureAuthenticated checks config and runs the auth flow if needed.

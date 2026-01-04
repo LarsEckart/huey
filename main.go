@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/lars/huey/auth"
-	"github.com/lars/huey/cmd"
-	"github.com/lars/huey/hue"
-	"github.com/lars/huey/tui"
+	"github.com/LarsEckart/huey/auth"
+	"github.com/LarsEckart/huey/cmd"
+	"github.com/LarsEckart/huey/hue"
+	"github.com/LarsEckart/huey/tui"
 	"github.com/spf13/cobra"
 )
 
