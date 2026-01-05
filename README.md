@@ -2,6 +2,8 @@
 
 A simple CLI to control your Philips Hue lights.
 
+![huey TUI](example-image.png)
+
 ## Installation
 
 ```bash
