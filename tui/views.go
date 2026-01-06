@@ -42,7 +42,6 @@ func (m Model) View() string {
 	s += m.renderTabs() + "\n\n"
 
 	if m.err != nil {
-		s += errorStyle.Render(fmt.Sprintf("Error: %v", m.err)) + "\n"
 		s += errorStyle.Render("Cannot reach Hue bridge. Are you on the same network?") + "\n\n"
 	}
 
