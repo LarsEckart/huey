@@ -24,14 +24,14 @@ type Client struct {
 func NewClient(bridgeIP, username string) *Client {
 	transport := &http.Transport{
 		DialContext: (&net.Dialer{
-			Timeout: 2 * time.Second,
+			Timeout: 500 * time.Millisecond,
 		}).DialContext,
 	}
 	return &Client{
 		bridgeIP: bridgeIP,
 		username: username,
 		httpClient: &http.Client{
-			Timeout:   2 * time.Second,
+			Timeout:   500 * time.Millisecond,
 			Transport: transport,
 		},
 	}
