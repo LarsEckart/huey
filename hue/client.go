@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"sort"
 	"strconv"
@@ -21,11 +22,17 @@ type Client struct {
 // NewClient creates a Client for the given bridge IP and username.
 // Username can be empty for registration calls.
 func NewClient(bridgeIP, username string) *Client {
+	transport := &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout: 2 * time.Second,
+		}).DialContext,
+	}
 	return &Client{
 		bridgeIP: bridgeIP,
 		username: username,
 		httpClient: &http.Client{
-			Timeout: 10 * time.Second,
+			Timeout:   2 * time.Second,
+			Transport: transport,
 		},
 	}
 }
@@ -33,6 +40,36 @@ func NewClient(bridgeIP, username string) *Client {
 // baseURL returns the API base URL.
 func (c *Client) baseURL() string {
 	return fmt.Sprintf("http://%s/api", c.bridgeIP)
+}
+
+// doWithRetry performs an HTTP request with one retry on failure.
+func (c *Client) doWithRetry(req *http.Request) (*http.Response, error) {
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		// One retry
+		resp, err = c.httpClient.Do(req)
+	}
+	return resp, err
+}
+
+// getWithRetry performs a GET request with one retry on failure.
+func (c *Client) getWithRetry(url string) (*http.Response, error) {
+	resp, err := c.httpClient.Get(url)
+	if err != nil {
+		// One retry
+		resp, err = c.httpClient.Get(url)
+	}
+	return resp, err
+}
+
+// postWithRetry performs a POST request with one retry on failure.
+func (c *Client) postWithRetry(url string, contentType string, body []byte) (*http.Response, error) {
+	resp, err := c.httpClient.Post(url, contentType, bytes.NewReader(body))
+	if err != nil {
+		// One retry
+		resp, err = c.httpClient.Post(url, contentType, bytes.NewReader(body))
+	}
+	return resp, err
 }
 
 // Register creates a new username on the bridge.
@@ -45,7 +82,7 @@ func (c *Client) Register(deviceType string) (string, error) {
 		return "", fmt.Errorf("marshal request: %w", err)
 	}
 
-	resp, err := c.httpClient.Post(c.baseURL(), "application/json", bytes.NewReader(jsonBody))
+	resp, err := c.postWithRetry(c.baseURL(), "application/json", jsonBody)
 	if err != nil {
 		return "", fmt.Errorf("post request: %w", err)
 	}
@@ -108,7 +145,7 @@ type lightResponse struct {
 // GetLights returns all lights from the bridge.
 func (c *Client) GetLights() ([]Light, error) {
 	url := fmt.Sprintf("%s/%s/lights", c.baseURL(), c.username)
-	resp, err := c.httpClient.Get(url)
+	resp, err := c.getWithRetry(url)
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
@@ -156,7 +193,7 @@ func (c *Client) GetLights() ([]Light, error) {
 // GetLight returns a single light by ID.
 func (c *Client) GetLight(id string) (*Light, error) {
 	url := fmt.Sprintf("%s/%s/lights/%s", c.baseURL(), c.username, id)
-	resp, err := c.httpClient.Get(url)
+	resp, err := c.getWithRetry(url)
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
@@ -210,7 +247,7 @@ func (c *Client) SetLightState(id string, state LightState) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doWithRetry(req)
 	if err != nil {
 		return fmt.Errorf("put request: %w", err)
 	}
@@ -240,7 +277,7 @@ func (c *Client) RenameLight(id string, name string) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doWithRetry(req)
 	if err != nil {
 		return fmt.Errorf("put request: %w", err)
 	}
@@ -299,7 +336,7 @@ type groupResponse struct {
 // GetGroups returns all groups from the bridge.
 func (c *Client) GetGroups() ([]Group, error) {
 	url := fmt.Sprintf("%s/%s/groups", c.baseURL(), c.username)
-	resp, err := c.httpClient.Get(url)
+	resp, err := c.getWithRetry(url)
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
@@ -370,7 +407,7 @@ func (c *Client) SetGroupState(id string, action GroupAction) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doWithRetry(req)
 	if err != nil {
 		return fmt.Errorf("put request: %w", err)
 	}
@@ -400,7 +437,7 @@ func (c *Client) RenameGroup(id string, name string) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doWithRetry(req)
 	if err != nil {
 		return fmt.Errorf("put request: %w", err)
 	}
@@ -423,7 +460,7 @@ func (c *Client) DeleteGroup(id string) error {
 		return fmt.Errorf("create request: %w", err)
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doWithRetry(req)
 	if err != nil {
 		return fmt.Errorf("delete request: %w", err)
 	}
@@ -452,7 +489,7 @@ func (c *Client) CreateGroup(name, groupType string, lightIDs []string) (string,
 		return "", fmt.Errorf("marshal request: %w", err)
 	}
 
-	resp, err := c.httpClient.Post(url, "application/json", bytes.NewReader(jsonBody))
+	resp, err := c.postWithRetry(url, "application/json", jsonBody)
 	if err != nil {
 		return "", fmt.Errorf("post request: %w", err)
 	}
@@ -508,7 +545,7 @@ type sceneResponse struct {
 // GetScenes returns all scenes from the bridge.
 func (c *Client) GetScenes() ([]Scene, error) {
 	url := fmt.Sprintf("%s/%s/scenes", c.baseURL(), c.username)
-	resp, err := c.httpClient.Get(url)
+	resp, err := c.getWithRetry(url)
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
@@ -551,7 +588,7 @@ func (c *Client) GetScenes() ([]Scene, error) {
 // GetScene returns a single scene by ID.
 func (c *Client) GetScene(id string) (*Scene, error) {
 	url := fmt.Sprintf("%s/%s/scenes/%s", c.baseURL(), c.username, id)
-	resp, err := c.httpClient.Get(url)
+	resp, err := c.getWithRetry(url)
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
@@ -606,7 +643,7 @@ func (c *Client) ActivateScene(sceneID string) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doWithRetry(req)
 	if err != nil {
 		return fmt.Errorf("put request: %w", err)
 	}
@@ -635,7 +672,7 @@ func (c *Client) CreateScene(name, groupID string) (string, error) {
 		return "", fmt.Errorf("marshal request: %w", err)
 	}
 
-	resp, err := c.httpClient.Post(url, "application/json", bytes.NewReader(jsonBody))
+	resp, err := c.postWithRetry(url, "application/json", jsonBody)
 	if err != nil {
 		return "", fmt.Errorf("post request: %w", err)
 	}
@@ -680,7 +717,7 @@ func (c *Client) DeleteScene(id string) error {
 		return fmt.Errorf("create request: %w", err)
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doWithRetry(req)
 	if err != nil {
 		return fmt.Errorf("delete request: %w", err)
 	}

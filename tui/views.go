@@ -42,7 +42,8 @@ func (m Model) View() string {
 	s += m.renderTabs() + "\n\n"
 
 	if m.err != nil {
-		s += fmt.Sprintf("Error: %v\n\n", m.err)
+		s += errorStyle.Render(fmt.Sprintf("Error: %v", m.err)) + "\n"
+		s += errorStyle.Render("Cannot reach Hue bridge. Are you on the same network?") + "\n\n"
 	}
 
 	// Render active tab content
@@ -104,7 +105,7 @@ func (m Model) renderTabs() string {
 }
 
 func (m Model) renderLights() string {
-	if !m.lightsLoaded {
+	if !m.lightsLoaded && m.err == nil {
 		return "Loading lights...\n"
 	}
 	if len(m.lights) == 0 {
@@ -144,7 +145,7 @@ func (m Model) renderLights() string {
 }
 
 func (m Model) renderGroups() string {
-	if !m.groupsLoaded {
+	if !m.groupsLoaded && m.err == nil {
 		return "Loading groups...\n"
 	}
 	if len(m.groups) == 0 {
@@ -188,7 +189,7 @@ func (m Model) renderGroups() string {
 }
 
 func (m Model) renderScenes() string {
-	if !m.scenesLoaded {
+	if !m.scenesLoaded && m.err == nil {
 		return "Loading scenes...\n"
 	}
 	if len(m.scenes) == 0 {

@@ -43,4 +43,8 @@ var (
 
 	inputStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("229"))
+
+	errorStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("196")).
+			Bold(true)
 )
