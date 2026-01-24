@@ -86,7 +86,7 @@ func (c *Client) Register(deviceType string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("post request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -149,7 +149,7 @@ func (c *Client) GetLights() ([]Light, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -197,7 +197,7 @@ func (c *Client) GetLight(id string) (*Light, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -251,7 +251,7 @@ func (c *Client) SetLightState(id string, state LightState) error {
 	if err != nil {
 		return fmt.Errorf("put request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -281,7 +281,7 @@ func (c *Client) RenameLight(id string, name string) error {
 	if err != nil {
 		return fmt.Errorf("put request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -340,7 +340,7 @@ func (c *Client) GetGroups() ([]Group, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -411,7 +411,7 @@ func (c *Client) SetGroupState(id string, action GroupAction) error {
 	if err != nil {
 		return fmt.Errorf("put request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -441,7 +441,7 @@ func (c *Client) RenameGroup(id string, name string) error {
 	if err != nil {
 		return fmt.Errorf("put request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -464,7 +464,7 @@ func (c *Client) DeleteGroup(id string) error {
 	if err != nil {
 		return fmt.Errorf("delete request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -493,7 +493,7 @@ func (c *Client) CreateGroup(name, groupType string, lightIDs []string) (string,
 	if err != nil {
 		return "", fmt.Errorf("post request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -549,7 +549,7 @@ func (c *Client) GetScenes() ([]Scene, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -592,7 +592,7 @@ func (c *Client) GetScene(id string) (*Scene, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -647,7 +647,7 @@ func (c *Client) ActivateScene(sceneID string) error {
 	if err != nil {
 		return fmt.Errorf("put request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -676,7 +676,7 @@ func (c *Client) CreateScene(name, groupID string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("post request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -721,7 +721,7 @@ func (c *Client) DeleteScene(id string) error {
 	if err != nil {
 		return fmt.Errorf("delete request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {

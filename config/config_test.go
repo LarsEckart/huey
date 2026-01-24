@@ -10,8 +10,8 @@ func TestLoadSave(t *testing.T) {
 	// Use temp dir for test
 	tmpDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", originalHome)
+	t.Setenv("HOME", tmpDir)
+	_ = originalHome // t.Setenv auto-restores
 
 	// Load should return empty config when file doesn't exist
 	config, err := Load()

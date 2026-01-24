@@ -8,6 +8,8 @@ import (
 	"github.com/LarsEckart/huey/auth"
 	"github.com/LarsEckart/huey/hue"
 	"github.com/spf13/cobra"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 var (
@@ -27,7 +29,7 @@ var GroupCreateCmd = &cobra.Command{
 		}
 
 		// Normalize and validate type
-		groupType := strings.Title(strings.ToLower(createGroupType))
+		groupType := cases.Title(language.English).String(strings.ToLower(createGroupType))
 		if groupType != "Room" && groupType != "Zone" {
 			fmt.Fprintln(os.Stderr, "Error: --type must be 'room' or 'zone'")
 			os.Exit(1)

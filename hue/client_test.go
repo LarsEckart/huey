@@ -18,12 +18,12 @@ func TestRegister_Success(t *testing.T) {
 		}
 
 		var body map[string]string
-		json.NewDecoder(r.Body).Decode(&body)
+		_ = json.NewDecoder(r.Body).Decode(&body)
 		if body["devicetype"] != "huey#test" {
 			t.Errorf("expected devicetype huey#test, got %s", body["devicetype"])
 		}
 
-		w.Write([]byte(`[{"success":{"username":"abc123"}}]`))
+		_, _ = w.Write([]byte(`[{"success":{"username":"abc123"}}]`))
 	}))
 	defer server.Close()
 
@@ -42,7 +42,7 @@ func TestRegister_Success(t *testing.T) {
 
 func TestRegister_LinkButtonNotPressed(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`[{"error":{"type":101,"address":"","description":"link button not pressed"}}]`))
+		_, _ = w.Write([]byte(`[{"error":{"type":101,"address":"","description":"link button not pressed"}}]`))
 	}))
 	defer server.Close()
 
@@ -67,7 +67,7 @@ func TestGetLights(t *testing.T) {
 			t.Errorf("expected /api/testuser/lights, got %s", r.URL.Path)
 		}
 
-		w.Write([]byte(`{
+		_, _ = w.Write([]byte(`{
 			"1": {
 				"name": "Living Room",
 				"type": "Extended color light",
@@ -96,9 +96,10 @@ func TestGetLights(t *testing.T) {
 	// Find lights by ID (map iteration order is random)
 	var light1, light2 *Light
 	for i := range lights {
-		if lights[i].ID == "1" {
+		switch lights[i].ID {
+		case "1":
 			light1 = &lights[i]
-		} else if lights[i].ID == "2" {
+		case "2":
 			light2 = &lights[i]
 		}
 	}
@@ -118,7 +119,7 @@ func TestGetLights(t *testing.T) {
 func TestGetLights_SortedNumerically(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// IDs that would sort wrong lexicographically: "1", "10", "2"
-		w.Write([]byte(`{
+		_, _ = w.Write([]byte(`{
 			"10": {"name": "Ten", "type": "Light", "state": {"on": true}},
 			"2": {"name": "Two", "type": "Light", "state": {"on": true}},
 			"1": {"name": "One", "type": "Light", "state": {"on": true}},
@@ -150,7 +151,7 @@ func TestGetLight(t *testing.T) {
 			t.Errorf("expected /api/testuser/lights/1, got %s", r.URL.Path)
 		}
 
-		w.Write([]byte(`{
+		_, _ = w.Write([]byte(`{
 			"name": "Living Room",
 			"type": "Extended color light",
 			"state": {"on": true, "bri": 254, "hue": 10000, "sat": 200}
@@ -187,13 +188,13 @@ func TestSetLightState(t *testing.T) {
 		}
 
 		var body map[string]any
-		json.NewDecoder(r.Body).Decode(&body)
+		_ = json.NewDecoder(r.Body).Decode(&body)
 
 		if body["on"] != true {
 			t.Errorf("expected on=true, got %v", body["on"])
 		}
 
-		w.Write([]byte(`[{"success":{"/lights/1/state/on":true}}]`))
+		_, _ = w.Write([]byte(`[{"success":{"/lights/1/state/on":true}}]`))
 	}))
 	defer server.Close()
 
@@ -209,7 +210,7 @@ func TestSetLightState(t *testing.T) {
 
 func TestSetLightState_Error(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`[{"error":{"type":3,"address":"/lights/999","description":"resource not available"}}]`))
+		_, _ = w.Write([]byte(`[{"error":{"type":3,"address":"/lights/999","description":"resource not available"}}]`))
 	}))
 	defer server.Close()
 
@@ -233,7 +234,7 @@ func TestGetGroups_LightsSortedNumerically(t *testing.T) {
 		}
 
 		// Lights in non-numeric order
-		w.Write([]byte(`{
+		_, _ = w.Write([]byte(`{
 			"1": {
 				"name": "Office",
 				"type": "Room",

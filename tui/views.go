@@ -64,11 +64,12 @@ func (m Model) View() string {
 	}
 
 	// Render help based on mode and tab
-	if m.mode == ModeRename {
+	switch m.mode {
+	case ModeRename:
 		s += "\n" + helpStyle.Render("enter confirm • esc cancel")
-	} else if m.mode == ModeDeleteConfirm || m.mode == ModeDeleteSceneConfirm {
+	case ModeDeleteConfirm, ModeDeleteSceneConfirm:
 		s += "\n" + helpStyle.Render("y/enter delete • n/esc cancel")
-	} else {
+	default:
 		switch m.activeTab {
 		case TabLights:
 			s += "\n" + helpStyle.Render("↑/↓ navigate • space toggle • r rename • tab switch • q quit")
@@ -257,7 +258,7 @@ func (m Model) renderGroupInfo() string {
 			}
 			s += fmt.Sprintf("  %-24s %s\n", light.Name, status)
 		} else {
-			s += fmt.Sprintf("  (unknown light)\n")
+			s += "  (unknown light)\n"
 		}
 	}
 
