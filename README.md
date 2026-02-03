@@ -1,5 +1,7 @@
 # huey
 
+[![Certified Shovelware](https://justin.searls.co/img/shovelware.svg)](https://justin.searls.co/shovelware/)
+
 A simple CLI to control your Philips Hue lights.
 
 ![huey TUI](example-image.png)
