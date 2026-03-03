@@ -2,10 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
-	"github.com/LarsEckart/huey/auth"
-	"github.com/LarsEckart/huey/hue"
 	"github.com/spf13/cobra"
 )
 
@@ -16,39 +13,33 @@ var SceneCmd = &cobra.Command{
 	Use:   "scene <id>",
 	Short: "Activate or delete a scene",
 	Args:  cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		sceneID := args[0]
 
-		cfg, err := auth.EnsureAuthenticated()
+		client, err := authenticatedClient()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
-		client := hue.NewClient(cfg.BridgeIP, cfg.Username)
-
-		// Get scene info first for confirmation message
 		scene, err := client.GetScene(sceneID)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("get scene: %w", err)
 		}
 
 		if sceneFlagDelete {
 			if err := client.DeleteScene(sceneID); err != nil {
-				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("delete scene: %w", err)
 			}
 			fmt.Printf("Deleted scene %q\n", scene.Name)
-			return
+			return nil
 		}
 
 		if err := client.ActivateScene(sceneID); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("activate scene: %w", err)
 		}
 
 		fmt.Printf("Activated scene %q\n", scene.Name)
+		return nil
 	},
 }
 

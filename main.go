@@ -12,21 +12,23 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "huey",
-	Short: "Control Philips Hue lights",
-	Long:  "A CLI to control Philips Hue lights. Run without arguments for interactive TUI.",
-	Run: func(command *cobra.Command, args []string) {
+	Use:           "huey",
+	Short:         "Control Philips Hue lights",
+	Long:          "A CLI to control Philips Hue lights. Run without arguments for interactive TUI.",
+	SilenceUsage:  true,
+	SilenceErrors: true,
+	RunE: func(command *cobra.Command, args []string) error {
 		cfg, err := auth.EnsureAuthenticated()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("ensure authentication: %w", err)
 		}
 
 		client := hue.NewClient(cfg.BridgeIP, cfg.Username)
 		if err := tui.Run(client); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("run tui: %w", err)
 		}
+
+		return nil
 	},
 }
 
@@ -43,7 +45,7 @@ func init() {
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }

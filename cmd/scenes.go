@@ -2,9 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
-	"github.com/LarsEckart/huey/auth"
 	"github.com/LarsEckart/huey/hue"
 	"github.com/spf13/cobra"
 )
@@ -13,26 +11,20 @@ import (
 var ScenesCmd = &cobra.Command{
 	Use:   "scenes",
 	Short: "List all scenes",
-	Run: func(cmd *cobra.Command, args []string) {
-		cfg, err := auth.EnsureAuthenticated()
+	RunE: func(cmd *cobra.Command, args []string) error {
+		client, err := authenticatedClient()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
-
-		client := hue.NewClient(cfg.BridgeIP, cfg.Username)
 
 		scenes, err := client.GetScenes()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("get scenes: %w", err)
 		}
 
-		// Get groups to show group names
 		groups, err := client.GetGroups()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("get groups: %w", err)
 		}
 
 		groupByID := make(map[string]hue.Group)
@@ -47,5 +39,7 @@ var ScenesCmd = &cobra.Command{
 			}
 			fmt.Printf("%-20s %-24s [%s]\n", scene.ID, scene.Name, groupName)
 		}
+
+		return nil
 	},
 }

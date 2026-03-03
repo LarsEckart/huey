@@ -2,12 +2,9 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"slices"
 	"strings"
 
-	"github.com/LarsEckart/huey/auth"
-	"github.com/LarsEckart/huey/hue"
 	"github.com/spf13/cobra"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -23,20 +20,16 @@ var (
 var GroupCreateCmd = &cobra.Command{
 	Use:   "group-create",
 	Short: "Create a new group (room or zone)",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		if createGroupName == "" {
-			fmt.Fprintln(os.Stderr, "Error: --name is required")
-			os.Exit(1)
+			return fmt.Errorf("--name is required")
 		}
 
-		// Normalize and validate type
 		groupType := cases.Title(language.English).String(strings.ToLower(createGroupType))
 		if !slices.Contains([]string{"Room", "Zone"}, groupType) {
-			fmt.Fprintln(os.Stderr, "Error: --type must be 'room' or 'zone'")
-			os.Exit(1)
+			return fmt.Errorf("--type must be 'room' or 'zone'")
 		}
 
-		// Parse light IDs.
 		var lightIDs []string
 		if createGroupLights != "" {
 			for lightID := range strings.SplitSeq(createGroupLights, ",") {
@@ -44,20 +37,18 @@ var GroupCreateCmd = &cobra.Command{
 			}
 		}
 
-		cfg, err := auth.EnsureAuthenticated()
+		client, err := authenticatedClient()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
-		client := hue.NewClient(cfg.BridgeIP, cfg.Username)
 		id, err := client.CreateGroup(createGroupName, groupType, lightIDs)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("create group: %w", err)
 		}
 
 		fmt.Printf("Created %s %q (ID: %s)\n", groupType, createGroupName, id)
+		return nil
 	},
 }
 

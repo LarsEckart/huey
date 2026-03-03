@@ -2,9 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
-	"github.com/LarsEckart/huey/auth"
 	"github.com/LarsEckart/huey/hue"
 	"github.com/spf13/cobra"
 )
@@ -21,16 +19,13 @@ var LightCmd = &cobra.Command{
 	Use:   "light <id>",
 	Short: "Control a single light",
 	Args:  cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		lightID := args[0]
 
-		// Handle rename separately
 		if flagName != "" {
-			renameLight(lightID, flagName)
-			return
+			return renameLight(lightID, flagName)
 		}
 
-		// Validate flags - exactly one must be set
 		flagCount := 0
 		if flagOn {
 			flagCount++
@@ -43,42 +38,32 @@ var LightCmd = &cobra.Command{
 		}
 
 		if flagCount == 0 {
-			// No flag: show light info
-			showLight(lightID)
-			return
+			return showLight(lightID)
 		}
 
 		if flagCount > 1 {
-			fmt.Fprintln(os.Stderr, "Error: use only one of --on, --off, or --toggle")
-			os.Exit(1)
+			return fmt.Errorf("use only one of --on, --off, or --toggle")
 		}
 
-		cfg, err := auth.EnsureAuthenticated()
+		client, err := authenticatedClient()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
-		client := hue.NewClient(cfg.BridgeIP, cfg.Username)
-
-		// Determine target state
 		var targetOn bool
 		if flagToggle {
 			light, err := client.GetLight(lightID)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("get light: %w", err)
 			}
 			targetOn = !light.On
 		} else {
 			targetOn = flagOn
 		}
 
-		// Set the state
 		state := hue.LightState{On: &targetOn}
 		if err := client.SetLightState(lightID, state); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("set light state: %w", err)
 		}
 
 		status := "off"
@@ -86,21 +71,19 @@ var LightCmd = &cobra.Command{
 			status = "on"
 		}
 		fmt.Printf("Light %s turned %s\n", lightID, status)
+		return nil
 	},
 }
 
-func showLight(lightID string) {
-	cfg, err := auth.EnsureAuthenticated()
+func showLight(lightID string) error {
+	client, err := authenticatedClient()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
-	client := hue.NewClient(cfg.BridgeIP, cfg.Username)
 	light, err := client.GetLight(lightID)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("get light: %w", err)
 	}
 
 	status := "off"
@@ -113,22 +96,21 @@ func showLight(lightID string) {
 	fmt.Printf("Type:       %s\n", light.Type)
 	fmt.Printf("State:      %s\n", status)
 	fmt.Printf("Brightness: %d\n", light.Brightness)
+	return nil
 }
 
-func renameLight(lightID, name string) {
-	cfg, err := auth.EnsureAuthenticated()
+func renameLight(lightID, name string) error {
+	client, err := authenticatedClient()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
-	client := hue.NewClient(cfg.BridgeIP, cfg.Username)
 	if err := client.RenameLight(lightID, name); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("rename light: %w", err)
 	}
 
 	fmt.Printf("Light %s renamed to %q\n", lightID, name)
+	return nil
 }
 
 func init() {

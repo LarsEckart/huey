@@ -2,10 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
-	"github.com/LarsEckart/huey/auth"
-	"github.com/LarsEckart/huey/hue"
 	"github.com/spf13/cobra"
 )
 
@@ -13,18 +10,15 @@ import (
 var GroupsCmd = &cobra.Command{
 	Use:   "groups",
 	Short: "List all groups",
-	Run: func(cmd *cobra.Command, args []string) {
-		cfg, err := auth.EnsureAuthenticated()
+	RunE: func(cmd *cobra.Command, args []string) error {
+		client, err := authenticatedClient()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
-		client := hue.NewClient(cfg.BridgeIP, cfg.Username)
 		groups, err := client.GetGroups()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("get groups: %w", err)
 		}
 
 		for _, group := range groups {
@@ -38,5 +32,7 @@ var GroupsCmd = &cobra.Command{
 			}
 			fmt.Printf("%s  %-20s  %-10s  %s\n", group.ID, group.Name, group.Type, status)
 		}
+
+		return nil
 	},
 }

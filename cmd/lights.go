@@ -2,10 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
-	"github.com/LarsEckart/huey/auth"
-	"github.com/LarsEckart/huey/hue"
 	"github.com/spf13/cobra"
 )
 
@@ -13,18 +10,15 @@ import (
 var LightsCmd = &cobra.Command{
 	Use:   "lights",
 	Short: "List all lights",
-	Run: func(cmd *cobra.Command, args []string) {
-		cfg, err := auth.EnsureAuthenticated()
+	RunE: func(cmd *cobra.Command, args []string) error {
+		client, err := authenticatedClient()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
-		client := hue.NewClient(cfg.BridgeIP, cfg.Username)
 		lights, err := client.GetLights()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("get lights: %w", err)
 		}
 
 		for _, light := range lights {
@@ -34,5 +28,7 @@ var LightsCmd = &cobra.Command{
 			}
 			fmt.Printf("%s  %-20s  %s\n", light.ID, light.Name, status)
 		}
+
+		return nil
 	},
 }

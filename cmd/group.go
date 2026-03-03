@@ -2,9 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
-	"github.com/LarsEckart/huey/auth"
 	"github.com/LarsEckart/huey/hue"
 	"github.com/spf13/cobra"
 )
@@ -22,22 +20,17 @@ var GroupCmd = &cobra.Command{
 	Use:   "group <id>",
 	Short: "Control a single group",
 	Args:  cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		groupID := args[0]
 
-		// Handle delete separately
 		if groupFlagDelete {
-			deleteGroup(groupID)
-			return
+			return deleteGroup(groupID)
 		}
 
-		// Handle rename separately
 		if groupFlagName != "" {
-			renameGroup(groupID, groupFlagName)
-			return
+			return renameGroup(groupID, groupFlagName)
 		}
 
-		// Validate flags - exactly one must be set
 		flagCount := 0
 		if groupFlagOn {
 			flagCount++
@@ -50,55 +43,43 @@ var GroupCmd = &cobra.Command{
 		}
 
 		if flagCount == 0 {
-			// No flag: show group info
-			showGroup(groupID)
-			return
+			return showGroup(groupID)
 		}
 
 		if flagCount > 1 {
-			fmt.Fprintln(os.Stderr, "Error: use only one of --on, --off, or --toggle")
-			os.Exit(1)
+			return fmt.Errorf("use only one of --on, --off, or --toggle")
 		}
 
-		cfg, err := auth.EnsureAuthenticated()
+		client, err := authenticatedClient()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return err
 		}
 
-		client := hue.NewClient(cfg.BridgeIP, cfg.Username)
-
-		// Determine target state
 		var targetOn bool
 		if groupFlagToggle {
 			groups, err := client.GetGroups()
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("get groups: %w", err)
 			}
-			// Find the group to check current state
-			var found bool
+
+			found := false
 			for _, g := range groups {
 				if g.ID == groupID {
-					// Toggle: if any light is on, turn all off; otherwise turn all on
 					targetOn = !g.AnyOn
 					found = true
 					break
 				}
 			}
 			if !found {
-				fmt.Fprintf(os.Stderr, "Error: group %s not found\n", groupID)
-				os.Exit(1)
+				return fmt.Errorf("group %s not found", groupID)
 			}
 		} else {
 			targetOn = groupFlagOn
 		}
 
-		// Set the state
 		action := hue.GroupAction{On: &targetOn}
 		if err := client.SetGroupState(groupID, action); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("set group state: %w", err)
 		}
 
 		status := "off"
@@ -106,24 +87,21 @@ var GroupCmd = &cobra.Command{
 			status = "on"
 		}
 		fmt.Printf("Group %s turned %s\n", groupID, status)
+		return nil
 	},
 }
 
-func showGroup(groupID string) {
-	cfg, err := auth.EnsureAuthenticated()
+func showGroup(groupID string) error {
+	client, err := authenticatedClient()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
-	client := hue.NewClient(cfg.BridgeIP, cfg.Username)
 	groups, err := client.GetGroups()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("get groups: %w", err)
 	}
 
-	// Find the group
 	var group *hue.Group
 	for _, g := range groups {
 		if g.ID == groupID {
@@ -133,18 +111,14 @@ func showGroup(groupID string) {
 	}
 
 	if group == nil {
-		fmt.Fprintf(os.Stderr, "Error: group %s not found\n", groupID)
-		os.Exit(1)
+		return fmt.Errorf("group %s not found", groupID)
 	}
 
-	// Fetch all lights to resolve names and states
 	lights, err := client.GetLights()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("get lights: %w", err)
 	}
 
-	// Build lookup map
 	lightByID := make(map[string]hue.Light)
 	for _, l := range lights {
 		lightByID[l.ID] = l
@@ -176,38 +150,36 @@ func showGroup(groupID string) {
 			fmt.Printf("  %s. (unknown)\n", lightID)
 		}
 	}
+
+	return nil
 }
 
-func renameGroup(groupID, name string) {
-	cfg, err := auth.EnsureAuthenticated()
+func renameGroup(groupID, name string) error {
+	client, err := authenticatedClient()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
-	client := hue.NewClient(cfg.BridgeIP, cfg.Username)
 	if err := client.RenameGroup(groupID, name); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("rename group: %w", err)
 	}
 
 	fmt.Printf("Group %s renamed to %q\n", groupID, name)
+	return nil
 }
 
-func deleteGroup(groupID string) {
-	cfg, err := auth.EnsureAuthenticated()
+func deleteGroup(groupID string) error {
+	client, err := authenticatedClient()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
-	client := hue.NewClient(cfg.BridgeIP, cfg.Username)
 	if err := client.DeleteGroup(groupID); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("delete group: %w", err)
 	}
 
 	fmt.Printf("Group %s deleted\n", groupID)
+	return nil
 }
 
 func init() {
