@@ -35,13 +35,11 @@ var GroupCreateCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// Parse light IDs
+		// Parse light IDs.
 		var lightIDs []string
 		if createGroupLights != "" {
-			lightIDs = strings.Split(createGroupLights, ",")
-			// Trim whitespace
-			for i := range lightIDs {
-				lightIDs[i] = strings.TrimSpace(lightIDs[i])
+			for lightID := range strings.SplitSeq(createGroupLights, ",") {
+				lightIDs = append(lightIDs, strings.TrimSpace(lightID))
 			}
 		}
 
