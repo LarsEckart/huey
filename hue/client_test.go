@@ -284,3 +284,33 @@ func TestGetGroups_LightsSortedNumerically(t *testing.T) {
 		}
 	}
 }
+
+func TestCompareNumericIDs(t *testing.T) {
+	tests := []struct {
+		name string
+		a    string
+		b    string
+		want int
+	}{
+		{name: "both numeric ascending", a: "1", b: "2", want: -1},
+		{name: "both numeric descending", a: "10", b: "2", want: 1},
+		{name: "numeric before non-numeric", a: "2", b: "abc", want: -1},
+		{name: "non-numeric after numeric", a: "abc", b: "2", want: 1},
+		{name: "both non-numeric lexical", a: "abc", b: "bcd", want: -1},
+		{name: "equal values", a: "42", b: "42", want: 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := compareNumericIDs(tt.a, tt.b)
+			switch {
+			case tt.want < 0 && got >= 0:
+				t.Fatalf("compareNumericIDs(%q, %q) = %d, want < 0", tt.a, tt.b, got)
+			case tt.want > 0 && got <= 0:
+				t.Fatalf("compareNumericIDs(%q, %q) = %d, want > 0", tt.a, tt.b, got)
+			case tt.want == 0 && got != 0:
+				t.Fatalf("compareNumericIDs(%q, %q) = %d, want 0", tt.a, tt.b, got)
+			}
+		})
+	}
+}
