@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/LarsEckart/huey/auth"
@@ -30,7 +31,7 @@ var GroupCreateCmd = &cobra.Command{
 
 		// Normalize and validate type
 		groupType := cases.Title(language.English).String(strings.ToLower(createGroupType))
-		if groupType != "Room" && groupType != "Zone" {
+		if !slices.Contains([]string{"Room", "Zone"}, groupType) {
 			fmt.Fprintln(os.Stderr, "Error: --type must be 'room' or 'zone'")
 			os.Exit(1)
 		}

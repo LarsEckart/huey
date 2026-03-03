@@ -2,6 +2,7 @@ package auth
 
 import (
 	"bufio"
+	"cmp"
 	"fmt"
 	"os"
 	"strings"
@@ -85,10 +86,7 @@ func registerWithBridge(bridgeIP string) (string, error) {
 
 	client := hue.NewClient(bridgeIP, "")
 	hostname, _ := os.Hostname()
-	if hostname == "" {
-		hostname = "cli"
-	}
-	deviceType := fmt.Sprintf("huey#%s", hostname)
+	deviceType := fmt.Sprintf("huey#%s", cmp.Or(hostname, "cli"))
 
 	username, err := client.Register(deviceType)
 	if err != nil {
