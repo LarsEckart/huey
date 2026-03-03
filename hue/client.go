@@ -2,12 +2,13 @@ package hue
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
-	"sort"
+	"slices"
 	"strconv"
 	"time"
 )
@@ -142,6 +143,25 @@ type lightResponse struct {
 	} `json:"state"`
 }
 
+// compareNumericIDs compares string IDs numerically when possible.
+// If one or both IDs are not numeric, numeric IDs come first and non-numeric
+// IDs are compared lexicographically.
+func compareNumericIDs(a, b string) int {
+	aID, aErr := strconv.Atoi(a)
+	bID, bErr := strconv.Atoi(b)
+
+	switch {
+	case aErr == nil && bErr == nil:
+		return cmp.Compare(aID, bID)
+	case aErr == nil:
+		return -1
+	case bErr == nil:
+		return 1
+	default:
+		return cmp.Compare(a, b)
+	}
+}
+
 // GetLights returns all lights from the bridge.
 func (c *Client) GetLights() ([]Light, error) {
 	url := fmt.Sprintf("%s/%s/lights", c.baseURL(), c.username)
@@ -180,11 +200,9 @@ func (c *Client) GetLights() ([]Light, error) {
 		})
 	}
 
-	// Sort by ID numerically for natural order
-	sort.Slice(lights, func(i, j int) bool {
-		iID, _ := strconv.Atoi(lights[i].ID)
-		jID, _ := strconv.Atoi(lights[j].ID)
-		return iID < jID
+	// Sort by ID numerically for natural order.
+	slices.SortFunc(lights, func(a, b Light) int {
+		return compareNumericIDs(a.ID, b.ID)
 	})
 
 	return lights, nil
@@ -359,13 +377,9 @@ func (c *Client) GetGroups() ([]Group, error) {
 
 	groups := make([]Group, 0, len(groupsMap))
 	for id, gr := range groupsMap {
-		// Sort light IDs numerically within each group
+		// Sort light IDs numerically within each group.
 		lights := gr.Lights
-		sort.Slice(lights, func(i, j int) bool {
-			iID, _ := strconv.Atoi(lights[i])
-			jID, _ := strconv.Atoi(lights[j])
-			return iID < jID
-		})
+		slices.SortFunc(lights, compareNumericIDs)
 
 		groups = append(groups, Group{
 			ID:     id,
@@ -377,11 +391,9 @@ func (c *Client) GetGroups() ([]Group, error) {
 		})
 	}
 
-	// Sort by ID numerically
-	sort.Slice(groups, func(i, j int) bool {
-		iID, _ := strconv.Atoi(groups[i].ID)
-		jID, _ := strconv.Atoi(groups[j].ID)
-		return iID < jID
+	// Sort by ID numerically.
+	slices.SortFunc(groups, func(a, b Group) int {
+		return compareNumericIDs(a.ID, b.ID)
 	})
 
 	return groups, nil
@@ -577,9 +589,9 @@ func (c *Client) GetScenes() ([]Scene, error) {
 		})
 	}
 
-	// Sort by name for consistent ordering
-	sort.Slice(scenes, func(i, j int) bool {
-		return scenes[i].Name < scenes[j].Name
+	// Sort by name for consistent ordering.
+	slices.SortFunc(scenes, func(a, b Scene) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 
 	return scenes, nil
