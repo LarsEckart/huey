@@ -94,9 +94,8 @@ func (c *Client) Register(deviceType string) (string, error) {
 		return "", fmt.Errorf("read response: %w", err)
 	}
 
-	// Bridge returns an array of responses
-	var results []map[string]any
-	if err := json.Unmarshal(data, &results); err != nil {
+	results, err := parseBridgeResults(data)
+	if err != nil {
 		return "", fmt.Errorf("unmarshal response: %w", err)
 	}
 
@@ -104,17 +103,13 @@ func (c *Client) Register(deviceType string) (string, error) {
 		return "", fmt.Errorf("empty response from bridge")
 	}
 
-	// Check for error
-	if errData, ok := results[0]["error"].(map[string]any); ok {
-		desc := errData["description"]
-		return "", fmt.Errorf("bridge error: %v", desc)
+	if err := bridgeErrorFromResult(results[0]); err != nil {
+		return "", err
 	}
 
-	// Extract username from success response
-	if success, ok := results[0]["success"].(map[string]any); ok {
-		if username, ok := success["username"].(string); ok {
-			return username, nil
-		}
+	var success registerSuccessResponse
+	if err := json.Unmarshal(results[0].Success, &success); err == nil && success.Username != "" {
+		return success.Username, nil
 	}
 
 	return "", fmt.Errorf("unexpected response format: %s", string(data))
@@ -141,6 +136,40 @@ type lightResponse struct {
 		Hue        int  `json:"hue"`
 		Saturation int  `json:"sat"`
 	} `json:"state"`
+}
+
+type bridgeErrorResponse struct {
+	Type        int    `json:"type"`
+	Address     string `json:"address"`
+	Description string `json:"description"`
+}
+
+type bridgeResult struct {
+	Error   *bridgeErrorResponse `json:"error,omitempty"`
+	Success json.RawMessage      `json:"success,omitempty"`
+}
+
+type registerSuccessResponse struct {
+	Username string `json:"username"`
+}
+
+type createResourceSuccessResponse struct {
+	ID string `json:"id"`
+}
+
+func parseBridgeResults(data []byte) ([]bridgeResult, error) {
+	var results []bridgeResult
+	if err := json.Unmarshal(data, &results); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func bridgeErrorFromResult(result bridgeResult) error {
+	if result.Error == nil {
+		return nil
+	}
+	return fmt.Errorf("bridge error: %s", result.Error.Description)
 }
 
 // compareNumericIDs compares string IDs numerically when possible.
@@ -312,9 +341,9 @@ func (c *Client) RenameLight(id string, name string) error {
 // checkError checks if the response contains an error.
 // Bridge errors come as: [{"error":{"type":1,"address":"/...","description":"..."}}]
 func (c *Client) checkError(data []byte) error {
-	var results []map[string]any
-	if err := json.Unmarshal(data, &results); err != nil {
-		// Not an array response, so not an error format
+	results, err := parseBridgeResults(data)
+	if err != nil {
+		// Not an array response, so not an error format.
 		return nil
 	}
 
@@ -322,12 +351,7 @@ func (c *Client) checkError(data []byte) error {
 		return nil
 	}
 
-	if errData, ok := results[0]["error"].(map[string]any); ok {
-		desc := errData["description"]
-		return fmt.Errorf("bridge error: %v", desc)
-	}
-
-	return nil
+	return bridgeErrorFromResult(results[0])
 }
 
 // Group represents a Hue group (room, zone, etc.).
@@ -512,9 +536,8 @@ func (c *Client) CreateGroup(name, groupType string, lightIDs []string) (string,
 		return "", fmt.Errorf("read response: %w", err)
 	}
 
-	// Check for error
-	var results []map[string]any
-	if err := json.Unmarshal(data, &results); err != nil {
+	results, err := parseBridgeResults(data)
+	if err != nil {
 		return "", fmt.Errorf("unmarshal response: %w", err)
 	}
 
@@ -522,16 +545,13 @@ func (c *Client) CreateGroup(name, groupType string, lightIDs []string) (string,
 		return "", fmt.Errorf("empty response from bridge")
 	}
 
-	if errData, ok := results[0]["error"].(map[string]any); ok {
-		desc := errData["description"]
-		return "", fmt.Errorf("bridge error: %v", desc)
+	if err := bridgeErrorFromResult(results[0]); err != nil {
+		return "", err
 	}
 
-	// Extract ID from success response
-	if success, ok := results[0]["success"].(map[string]any); ok {
-		if id, ok := success["id"].(string); ok {
-			return id, nil
-		}
+	var success createResourceSuccessResponse
+	if err := json.Unmarshal(results[0].Success, &success); err == nil && success.ID != "" {
+		return success.ID, nil
 	}
 
 	return "", fmt.Errorf("unexpected response format: %s", string(data))
@@ -695,9 +715,8 @@ func (c *Client) CreateScene(name, groupID string) (string, error) {
 		return "", fmt.Errorf("read response: %w", err)
 	}
 
-	// Parse response
-	var results []map[string]any
-	if err := json.Unmarshal(data, &results); err != nil {
+	results, err := parseBridgeResults(data)
+	if err != nil {
 		return "", fmt.Errorf("unmarshal response: %w", err)
 	}
 
@@ -705,16 +724,13 @@ func (c *Client) CreateScene(name, groupID string) (string, error) {
 		return "", fmt.Errorf("empty response from bridge")
 	}
 
-	if errData, ok := results[0]["error"].(map[string]any); ok {
-		desc := errData["description"]
-		return "", fmt.Errorf("bridge error: %v", desc)
+	if err := bridgeErrorFromResult(results[0]); err != nil {
+		return "", err
 	}
 
-	// Extract ID from success response
-	if success, ok := results[0]["success"].(map[string]any); ok {
-		if id, ok := success["id"].(string); ok {
-			return id, nil
-		}
+	var success createResourceSuccessResponse
+	if err := json.Unmarshal(results[0].Success, &success); err == nil && success.ID != "" {
+		return success.ID, nil
 	}
 
 	return "", fmt.Errorf("unexpected response format: %s", string(data))
