@@ -574,6 +574,19 @@ type sceneResponse struct {
 	Lights []string `json:"lights"`
 }
 
+func sortScenes(scenes []Scene) {
+	// Sort by group first so related scenes stay together, then by name.
+	slices.SortFunc(scenes, func(a, b Scene) int {
+		if groupOrder := compareNumericIDs(a.Group, b.Group); groupOrder != 0 {
+			return groupOrder
+		}
+		if nameOrder := cmp.Compare(a.Name, b.Name); nameOrder != 0 {
+			return nameOrder
+		}
+		return compareNumericIDs(a.ID, b.ID)
+	})
+}
+
 // GetScenes returns all scenes from the bridge.
 func (c *Client) GetScenes() ([]Scene, error) {
 	url := fmt.Sprintf("%s/%s/scenes", c.baseURL(), c.username)
@@ -609,10 +622,7 @@ func (c *Client) GetScenes() ([]Scene, error) {
 		})
 	}
 
-	// Sort by name for consistent ordering.
-	slices.SortFunc(scenes, func(a, b Scene) int {
-		return cmp.Compare(a.Name, b.Name)
-	})
+	sortScenes(scenes)
 
 	return scenes, nil
 }

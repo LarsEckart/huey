@@ -285,6 +285,59 @@ func TestGetGroups_LightsSortedNumerically(t *testing.T) {
 	}
 }
 
+func TestGetScenes_SortedByGroupThenName(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/testuser/scenes" {
+			t.Errorf("expected /api/testuser/scenes, got %s", r.URL.Path)
+		}
+
+		_, _ = w.Write([]byte(`{
+			"x3": {"name": "Zeta", "group": "2", "type": "GroupScene", "lights": ["1"]},
+			"x1": {"name": "Beta", "group": "1", "type": "GroupScene", "lights": ["1"]},
+			"x2": {"name": "Alpha", "group": "1", "type": "GroupScene", "lights": ["1"]},
+			"x5": {"name": "Bravo", "group": "10", "type": "GroupScene", "lights": ["1"]},
+			"x4": {"name": "Alpha", "group": "2", "type": "GroupScene", "lights": ["1"]}
+		}`))
+	}))
+	defer server.Close()
+
+	addr := strings.TrimPrefix(server.URL, "http://")
+	client := NewClient(addr, "testuser")
+
+	scenes, err := client.GetScenes()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(scenes) != 5 {
+		t.Fatalf("expected 5 scenes, got %d", len(scenes))
+	}
+
+	wantOrder := []string{"x2", "x1", "x4", "x3", "x5"}
+	for i, scene := range scenes {
+		if scene.ID != wantOrder[i] {
+			t.Errorf("position %d: got ID %s, want %s", i, scene.ID, wantOrder[i])
+		}
+	}
+}
+
+func TestSortScenes_TieBreaksByID(t *testing.T) {
+	scenes := []Scene{
+		{ID: "10", Name: "Alpha", Group: "1"},
+		{ID: "2", Name: "Alpha", Group: "1"},
+		{ID: "1", Name: "Beta", Group: "1"},
+	}
+
+	sortScenes(scenes)
+
+	wantOrder := []string{"2", "10", "1"}
+	for i, scene := range scenes {
+		if scene.ID != wantOrder[i] {
+			t.Errorf("position %d: got ID %s, want %s", i, scene.ID, wantOrder[i])
+		}
+	}
+}
+
 func TestCompareNumericIDs(t *testing.T) {
 	tests := []struct {
 		name string
