@@ -3,6 +3,7 @@ package hue
 import (
 	"bytes"
 	"cmp"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -46,31 +47,51 @@ func (c *Client) baseURL() string {
 // doWithRetry performs an HTTP request with one retry on failure.
 func (c *Client) doWithRetry(req *http.Request) (*http.Response, error) {
 	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		// One retry
-		resp, err = c.httpClient.Do(req)
+	if err == nil {
+		return resp, nil
 	}
-	return resp, err
+
+	retryReq, retryErr := cloneRequestForRetry(req)
+	if retryErr != nil {
+		return nil, fmt.Errorf("clone request for retry: %w", retryErr)
+	}
+
+	return c.httpClient.Do(retryReq)
 }
 
 // getWithRetry performs a GET request with one retry on failure.
 func (c *Client) getWithRetry(url string) (*http.Response, error) {
-	resp, err := c.httpClient.Get(url)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
 	if err != nil {
-		// One retry
-		resp, err = c.httpClient.Get(url)
+		return nil, fmt.Errorf("create request: %w", err)
 	}
-	return resp, err
+
+	return c.doWithRetry(req)
 }
 
 // postWithRetry performs a POST request with one retry on failure.
 func (c *Client) postWithRetry(url string, contentType string, body []byte) (*http.Response, error) {
-	resp, err := c.httpClient.Post(url, contentType, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		// One retry
-		resp, err = c.httpClient.Post(url, contentType, bytes.NewReader(body))
+		return nil, fmt.Errorf("create request: %w", err)
 	}
-	return resp, err
+	req.Header.Set("Content-Type", contentType)
+
+	return c.doWithRetry(req)
+}
+
+func cloneRequestForRetry(req *http.Request) (*http.Request, error) {
+	clone := req.Clone(req.Context())
+	if req.GetBody == nil {
+		return clone, nil
+	}
+
+	body, err := req.GetBody()
+	if err != nil {
+		return nil, err
+	}
+	clone.Body = body
+	return clone, nil
 }
 
 // Register creates a new username on the bridge.
@@ -288,7 +309,7 @@ func (c *Client) SetLightState(id string, state LightState) error {
 		return fmt.Errorf("marshal request: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPut, url, bytes.NewReader(jsonBody))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPut, url, bytes.NewReader(jsonBody))
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}
@@ -318,7 +339,7 @@ func (c *Client) RenameLight(id string, name string) error {
 		return fmt.Errorf("marshal request: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPut, url, bytes.NewReader(jsonBody))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPut, url, bytes.NewReader(jsonBody))
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}
@@ -437,7 +458,7 @@ func (c *Client) SetGroupState(id string, action GroupAction) error {
 		return fmt.Errorf("marshal request: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPut, url, bytes.NewReader(jsonBody))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPut, url, bytes.NewReader(jsonBody))
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}
@@ -467,7 +488,7 @@ func (c *Client) RenameGroup(id string, name string) error {
 		return fmt.Errorf("marshal request: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPut, url, bytes.NewReader(jsonBody))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPut, url, bytes.NewReader(jsonBody))
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}
@@ -491,7 +512,7 @@ func (c *Client) RenameGroup(id string, name string) error {
 func (c *Client) DeleteGroup(id string) error {
 	url := fmt.Sprintf("%s/%s/groups/%s", c.baseURL(), c.username, id)
 
-	req, err := http.NewRequest(http.MethodDelete, url, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodDelete, url, nil)
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}
@@ -679,7 +700,7 @@ func (c *Client) ActivateScene(sceneID string) error {
 		return fmt.Errorf("marshal request: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPut, url, bytes.NewReader(jsonBody))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPut, url, bytes.NewReader(jsonBody))
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}
@@ -750,7 +771,7 @@ func (c *Client) CreateScene(name, groupID string) (string, error) {
 func (c *Client) DeleteScene(id string) error {
 	url := fmt.Sprintf("%s/%s/scenes/%s", c.baseURL(), c.username, id)
 
-	req, err := http.NewRequest(http.MethodDelete, url, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodDelete, url, nil)
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}

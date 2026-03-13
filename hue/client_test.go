@@ -94,18 +94,24 @@ func TestGetLights(t *testing.T) {
 	}
 
 	// Find lights by ID (map iteration order is random)
-	var light1, light2 *Light
-	for i := range lights {
-		switch lights[i].ID {
+	var light1, light2 Light
+	var foundLight1, foundLight2 bool
+	for _, light := range lights {
+		switch light.ID {
 		case "1":
-			light1 = &lights[i]
+			light1 = light
+			foundLight1 = true
 		case "2":
-			light2 = &lights[i]
+			light2 = light
+			foundLight2 = true
 		}
 	}
 
-	if light1 == nil || light2 == nil {
-		t.Fatal("missing expected lights")
+	if !foundLight1 {
+		t.Fatal("missing light 1")
+	}
+	if !foundLight2 {
+		t.Fatal("missing light 2")
 	}
 
 	if light1.Name != "Living Room" || !light1.On || light1.Brightness != 254 {

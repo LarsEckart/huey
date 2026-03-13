@@ -3,7 +3,15 @@
 A Go CLI app to control Philips Hue lights. Dual-mode: flag-based for scripting/agents, interactive TUI for humans.
 
 Small steps, frequent commits. Make sure to run `go install` when done with a new feature or making changes.
-Use `golanglint-ci` to verify code.
+
+## Commands
+
+- Install: `make install`
+- Build: `make build`
+- Test: `make test`
+- Format: `make fmt` (uses goimports)
+- Lint: `make lint` (uses golangci-lint v2)
+- All checks: `make check` (format check + lint + test)
 
 ## Architecture
 
