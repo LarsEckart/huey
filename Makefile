@@ -1,25 +1,21 @@
-.PHONY: install fmt fmt-check lint test build check clean
+BINARY=huey
+GO_DIR=.
 
-install:
-	go install .
+.PHONY: fmt lint test build check install
 
 fmt:
-	goimports -w .
-
-fmt-check:
-	@test -z "$$(goimports -d .)" || (goimports -d . && exit 1)
+	cd $(GO_DIR) && gofmt -w $$(find . -name '*.go' -not -path './vendor/*')
 
 lint:
-	golangci-lint run ./...
+	cd $(GO_DIR) && golangci-lint run ./...
 
 test:
-	go test ./...
+	cd $(GO_DIR) && go test ./...
 
-build:
-	go build -o huey .
+build: fmt
+	cd $(GO_DIR) && go build -o $(BINARY) .
 
-check: fmt-check lint test
+check: lint test build
 
-clean:
-	rm -f huey
-	go clean
+install:
+	cd $(GO_DIR) && go install .
