@@ -17,9 +17,10 @@ Or download a binary from the [releases page](https://github.com/lars/huey/relea
 ## First Run
 
 1. Run `huey`
-2. Enter your Hue bridge IP address when prompted
-3. Press the link button on your Hue bridge
-4. Press Enter
+2. huey automatically looks for your Hue bridge via `https://discovery.meethue.com/`
+3. If multiple bridges are found, choose one; if none are found, enter the bridge IP manually
+4. Press the link button on your Hue bridge
+5. Press Enter
 
 That's it! Your credentials are saved to `~/.config/huey/config.json`.
 
@@ -127,6 +128,10 @@ huey scene-create --name "Focus" --group 85
 ```
 
 ## Finding Your Bridge IP
+
+huey tries to detect your bridge automatically using https://discovery.meethue.com.
+
+If automatic discovery fails:
 
 - Check your router's connected devices
 - Use the Hue app: Settings → Hue Bridges → (i) icon
