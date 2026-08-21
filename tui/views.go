@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/LarsEckart/huey/hue"
 )
@@ -112,7 +113,7 @@ func (m Model) renderLights() string {
 		return "No lights found.\n"
 	}
 
-	var s string
+	var s strings.Builder
 	for i, light := range m.lights {
 		cursor := "  "
 		style := normalStyle
@@ -138,10 +139,10 @@ func (m Model) renderLights() string {
 		}
 
 		line := fmt.Sprintf("%s%s %s", cursor, name, status)
-		s += style.Render(line) + "\n"
+		s.WriteString(style.Render(line) + "\n")
 	}
 
-	return s
+	return s.String()
 }
 
 func (m Model) renderGroups() string {
@@ -152,7 +153,7 @@ func (m Model) renderGroups() string {
 		return "No groups found.\n"
 	}
 
-	var s string
+	var s strings.Builder
 	for i, group := range m.groups {
 		cursor := "  "
 		style := normalStyle
@@ -182,10 +183,10 @@ func (m Model) renderGroups() string {
 		}
 
 		line := fmt.Sprintf("%s%s %-8s %s", cursor, name, groupType, status)
-		s += style.Render(line) + "\n"
+		s.WriteString(style.Render(line) + "\n")
 	}
 
-	return s
+	return s.String()
 }
 
 func (m Model) renderScenes() string {
@@ -202,7 +203,7 @@ func (m Model) renderScenes() string {
 		groupByID[g.ID] = g
 	}
 
-	var s string
+	var s strings.Builder
 	for i, scene := range m.scenes {
 		cursor := "  "
 		style := normalStyle
@@ -217,10 +218,10 @@ func (m Model) renderScenes() string {
 		}
 
 		line := fmt.Sprintf("%s%-24s %s", cursor, scene.Name, typeStyle.Render(fmt.Sprintf("[%s]", groupName)))
-		s += style.Render(line) + "\n"
+		s.WriteString(style.Render(line) + "\n")
 	}
 
-	return s
+	return s.String()
 }
 
 func (m Model) renderGroupInfo() string {
@@ -243,10 +244,11 @@ func (m Model) renderGroupInfo() string {
 		lightByID[l.ID] = l
 	}
 
-	s := titleStyle.Render(fmt.Sprintf("Group: %s", group.Name)) + "\n"
-	s += typeStyle.Render(fmt.Sprintf("Type: %s", group.Type)) + "\n\n"
+	var s strings.Builder
+	s.WriteString(titleStyle.Render(fmt.Sprintf("Group: %s", group.Name)) + "\n")
+	s.WriteString(typeStyle.Render(fmt.Sprintf("Type: %s", group.Type)) + "\n\n")
 
-	s += "Lights:\n"
+	s.WriteString("Lights:\n")
 	for _, lightID := range group.Lights {
 		light, ok := lightByID[lightID]
 		if ok {
@@ -256,14 +258,14 @@ func (m Model) renderGroupInfo() string {
 			} else {
 				status = offStyle.Render("○ off")
 			}
-			s += fmt.Sprintf("  %-24s %s\n", light.Name, status)
+			s.WriteString(fmt.Sprintf("  %-24s %s\n", light.Name, status))
 		} else {
-			s += "  (unknown light)\n"
+			s.WriteString("  (unknown light)\n")
 		}
 	}
 
-	s += "\n" + helpStyle.Render("esc back")
-	return s
+	s.WriteString("\n" + helpStyle.Render("esc back"))
+	return s.String()
 }
 
 func (m Model) renderCreateGroupType() string {
@@ -284,8 +286,9 @@ func (m Model) renderCreateGroupName() string {
 }
 
 func (m Model) renderCreateGroupLights() string {
-	s := titleStyle.Render(fmt.Sprintf("Create %s: %s", m.createGroupType, m.createGroupName)) + "\n\n"
-	s += "Select lights (space to toggle):\n\n"
+	var s strings.Builder
+	s.WriteString(titleStyle.Render(fmt.Sprintf("Create %s: %s", m.createGroupType, m.createGroupName)) + "\n\n")
+	s.WriteString("Select lights (space to toggle):\n\n")
 
 	for i, light := range m.lights {
 		cursor := "  "
@@ -300,19 +303,20 @@ func (m Model) renderCreateGroupLights() string {
 
 		line := fmt.Sprintf("%s%s %s %s", cursor, checkbox, light.ID, light.Name)
 		if i == m.createLightCursor {
-			s += selectedStyle.Render(line) + "\n"
+			s.WriteString(selectedStyle.Render(line) + "\n")
 		} else {
-			s += normalStyle.Render(line) + "\n"
+			s.WriteString(normalStyle.Render(line) + "\n")
 		}
 	}
 
-	s += "\n" + helpStyle.Render("↑/↓ navigate • space toggle • enter create • esc cancel")
-	return s
+	s.WriteString("\n" + helpStyle.Render("↑/↓ navigate • space toggle • enter create • esc cancel"))
+	return s.String()
 }
 
 func (m Model) renderCreateSceneGroup() string {
-	s := titleStyle.Render("Create Scene") + "\n\n"
-	s += "Select group to capture:\n\n"
+	var s strings.Builder
+	s.WriteString(titleStyle.Render("Create Scene") + "\n\n")
+	s.WriteString("Select group to capture:\n\n")
 
 	for i, group := range m.groups {
 		cursor := "  "
@@ -323,11 +327,11 @@ func (m Model) renderCreateSceneGroup() string {
 		}
 
 		line := fmt.Sprintf("%s%s", cursor, group.Name)
-		s += style.Render(line) + "\n"
+		s.WriteString(style.Render(line) + "\n")
 	}
 
-	s += "\n" + helpStyle.Render("↑/↓ navigate • enter select • esc cancel")
-	return s
+	s.WriteString("\n" + helpStyle.Render("↑/↓ navigate • enter select • esc cancel"))
+	return s.String()
 }
 
 func (m Model) renderCreateSceneName() string {
